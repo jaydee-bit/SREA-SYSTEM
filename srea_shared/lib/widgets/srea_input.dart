@@ -1,23 +1,43 @@
+// File: srea_input.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/theme.dart';
 
-// ─────────────────────────────────────────────────────────────
-// Shared input decoration factory
-// ─────────────────────────────────────────────────────────────
+EdgeInsets _responsiveInputPadding(BuildContext context) {
+  final width = MediaQuery.of(context).size.width;
+  final horizontal = (width * 0.045).clamp(12.0, 24.0);
+  final vertical = (width * 0.035).clamp(12.0, 18.0);
+  return EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical);
+}
+
+double _responsiveInputFontSize(BuildContext context) {
+  final width = MediaQuery.of(context).size.width;
+  return (14.0 * (width / 375).clamp(0.85, 1.1)).clamp(12.0, 16.0);
+}
+
+double _responsiveLabelFontSize(BuildContext context) {
+  final width = MediaQuery.of(context).size.width;
+  return (13.0 * (width / 375).clamp(0.85, 1.1)).clamp(11.0, 15.0);
+}
+
 InputDecoration _sreaInputDecoration({
+  required BuildContext context,
   required String hint,
   IconData? prefixIcon,
   Widget? suffix,
 }) {
   return InputDecoration(
     hintText: hint,
-    hintStyle: SreaText.bodySmall.copyWith(color: SreaColors.textHint),
+    hintStyle: SreaText.bodySmall(context).copyWith(
+      fontSize: _responsiveInputFontSize(context),
+      color: SreaColors.textHint,
+    ),
     prefixIcon: prefixIcon != null
         ? Icon(prefixIcon, size: 18, color: SreaColors.textHint)
         : null,
     suffixIcon: suffix,
-    contentPadding: SreaSpacing.inputPadding,
+    contentPadding: _responsiveInputPadding(context),
     filled: true,
     fillColor: SreaColors.surface,
     enabledBorder: OutlineInputBorder(
@@ -38,15 +58,11 @@ InputDecoration _sreaInputDecoration({
     ),
     disabledBorder: OutlineInputBorder(
       borderRadius: SreaRadius.input,
-      // ignore: deprecated_member_use
       borderSide: BorderSide(color: SreaColors.border.withOpacity(0.5), width: 1),
     ),
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Shared label widget used above every input
-// ─────────────────────────────────────────────────────────────
 class SreaInputLabel extends StatelessWidget {
   final String label;
   final bool required;
@@ -55,10 +71,12 @@ class SreaInputLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final labelSize = _responsiveLabelFontSize(context);
     return RichText(
       text: TextSpan(
         text: label,
-        style: SreaText.bodySmall.copyWith(
+        style: SreaText.bodySmall(context).copyWith(
+          fontSize: labelSize,
           color: SreaColors.textSecondary,
           fontWeight: FontWeight.w600,
         ),
@@ -66,7 +84,10 @@ class SreaInputLabel extends StatelessWidget {
             ? [
                 TextSpan(
                   text: ' *',
-                  style: SreaText.bodySmall.copyWith(color: SreaColors.error),
+                  style: SreaText.bodySmall(context).copyWith(
+                    fontSize: labelSize,
+                    color: SreaColors.error,
+                  ),
                 )
               ]
             : [],
@@ -75,13 +96,6 @@ class SreaInputLabel extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// SreaTextField — Standard text input
-//
-// Usage:
-// SreaTextField(label: 'First Name', hint: 'Enter first name', controller: _ctrl)
-// SreaTextField(label: 'Contact', hint: '09XXXXXXXXX', keyboardType: TextInputType.phone)
-// ─────────────────────────────────────────────────────────────
 class SreaTextField extends StatelessWidget {
   final String hint;
   final String? label;
@@ -117,7 +131,7 @@ class SreaTextField extends StatelessWidget {
       children: [
         if (label != null) ...[
           SreaInputLabel(label: label!, required: required),
-          SizedBox(height: SreaSpacing.inputLabelGap),
+          const SizedBox(height: 6),
         ],
         TextFormField(
           controller: controller,
@@ -127,8 +141,12 @@ class SreaTextField extends StatelessWidget {
           inputFormatters: inputFormatters,
           enabled: enabled,
           maxLines: maxLines,
-          style: SreaText.bodySmall.copyWith(color: SreaColors.textPrimary),
+          style: SreaText.bodySmall(context).copyWith(
+            fontSize: _responsiveInputFontSize(context),
+            color: SreaColors.textPrimary,
+          ),
           decoration: _sreaInputDecoration(
+            context: context,
             hint: hint,
             prefixIcon: prefixIcon,
           ),
@@ -138,12 +156,6 @@ class SreaTextField extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// SreaPasswordField — Password input with show/hide toggle
-//
-// Usage:
-// SreaPasswordField(label: 'Password', hint: 'Enter password', controller: _ctrl)
-// ─────────────────────────────────────────────────────────────
 class SreaPasswordField extends StatefulWidget {
   final String hint;
   final String? label;
@@ -176,15 +188,19 @@ class _SreaPasswordFieldState extends State<SreaPasswordField> {
       children: [
         if (widget.label != null) ...[
           SreaInputLabel(label: widget.label!, required: widget.required),
-          SizedBox(height: SreaSpacing.inputLabelGap),
+          const SizedBox(height: 6),
         ],
         TextFormField(
           controller: widget.controller,
           obscureText: _obscure,
           validator: widget.validator,
           onChanged: widget.onChanged,
-          style: SreaText.bodySmall.copyWith(color: SreaColors.textPrimary),
+          style: SreaText.bodySmall(context).copyWith(
+            fontSize: _responsiveInputFontSize(context),
+            color: SreaColors.textPrimary,
+          ),
           decoration: _sreaInputDecoration(
+            context: context,
             hint: widget.hint,
             prefixIcon: Icons.lock_outline_rounded,
             suffix: IconButton(
@@ -204,18 +220,6 @@ class _SreaPasswordFieldState extends State<SreaPasswordField> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// SreaDropdown — Dropdown / select field
-//
-// Usage:
-// SreaDropdown<String>(
-//   label: 'Gender',
-//   hint: 'Choose your Gender',
-//   value: _gender,
-//   items: ['Male', 'Female', 'Other'],
-//   onChanged: (v) => setState(() => _gender = v),
-// )
-// ─────────────────────────────────────────────────────────────
 class SreaDropdown<T> extends StatelessWidget {
   final String hint;
   final String? label;
@@ -245,23 +249,30 @@ class SreaDropdown<T> extends StatelessWidget {
       children: [
         if (label != null) ...[
           SreaInputLabel(label: label!, required: required),
-          SizedBox(height: SreaSpacing.inputLabelGap),
+          const SizedBox(height: 6),
         ],
         DropdownButtonFormField<T>(
           initialValue: value,
           validator: validator,
           onChanged: onChanged,
-          style: SreaText.bodySmall.copyWith(color: SreaColors.textPrimary),
+          style: SreaText.bodySmall(context).copyWith(
+            fontSize: _responsiveInputFontSize(context),
+            color: SreaColors.textPrimary,
+          ),
           icon: const Icon(Icons.keyboard_arrow_down_rounded,
               color: SreaColors.textHint),
-          decoration: _sreaInputDecoration(hint: hint),
+          decoration: _sreaInputDecoration(context: context, hint: hint),
           items: items.map((item) {
             final label = itemLabel != null ? itemLabel!(item) : item.toString();
             return DropdownMenuItem<T>(
               value: item,
-              child: Text(label,
-                  style: SreaText.bodySmall
-                      .copyWith(color: SreaColors.textPrimary)),
+              child: Text(
+                label,
+                style: SreaText.bodySmall(context).copyWith(
+                  fontSize: _responsiveInputFontSize(context),
+                  color: SreaColors.textPrimary,
+                ),
+              ),
             );
           }).toList(),
         ),
