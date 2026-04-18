@@ -251,26 +251,39 @@ class SreaDropdown<T> extends StatelessWidget {
           SreaInputLabel(label: label!, required: required),
           const SizedBox(height: 6),
         ],
+        // Inside SreaDropdown's build method, change DropdownButtonFormField to:
         DropdownButtonFormField<T>(
           initialValue: value,
           validator: validator,
           onChanged: onChanged,
+          isExpanded: true, // ← add this to make the button expand
+          menuMaxHeight: 300, // ← limit menu height
           style: SreaText.bodySmall(context).copyWith(
             fontSize: _responsiveInputFontSize(context),
             color: SreaColors.textPrimary,
           ),
-          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-              color: SreaColors.textHint),
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: SreaColors.textHint,
+          ),
           decoration: _sreaInputDecoration(context: context, hint: hint),
           items: items.map((item) {
-            final label = itemLabel != null ? itemLabel!(item) : item.toString();
+            final label = itemLabel != null
+                ? itemLabel!(item)
+                : item.toString();
             return DropdownMenuItem<T>(
               value: item,
-              child: Text(
-                label,
-                style: SreaText.bodySmall(context).copyWith(
-                  fontSize: _responsiveInputFontSize(context),
-                  color: SreaColors.textPrimary,
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width - 40,
+                ),
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: SreaText.bodySmall(context).copyWith(
+                    fontSize: _responsiveInputFontSize(context),
+                    color: SreaColors.textPrimary,
+                  ),
                 ),
               ),
             );

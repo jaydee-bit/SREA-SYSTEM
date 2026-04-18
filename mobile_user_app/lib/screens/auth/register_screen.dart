@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:srea_shared/srea_shared.dart';
+import 'pending_verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -99,8 +100,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_residencyStatus == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please select your residency status',
-              style: SreaText.bodySmall(context).copyWith(color: Colors.white)),
+          content: Text(
+            'Please select your residency status',
+            style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+          ),
           backgroundColor: SreaColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: SreaRadius.input),
@@ -109,8 +112,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     setState(() => _isLoading = true);
+
+    // TODO: Replace with actual API call
     await Future.delayed(const Duration(seconds: 2));
+
     setState(() => _isLoading = false);
+
+    // After successful registration, navigate to pending screen
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const PendingVerificationScreen()),
+      );
+    }
   }
 
   @override
