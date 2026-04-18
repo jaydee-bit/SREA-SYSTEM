@@ -68,3 +68,8 @@
 	</array>
 </dict>
 </plist>
+
+<key>NSCameraUsageDescription</key>
+<string>SREA needs camera access to take photos of your valid ID</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>SREA needs access to your photo library to upload your valid ID</string>

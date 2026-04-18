@@ -1,4 +1,5 @@
 // File: srea_badge.dart
+// Path: srea_shared/lib/widgets/srea_badge.dart
 
 import 'package:flutter/material.dart';
 import '../theme/theme.dart';
@@ -38,9 +39,9 @@ class SreaBadge extends StatelessWidget {
     required Color color,
     required Color bgColor,
     this.showDot = true,
-  })  : type = SreaBadgeType.custom,
-        customColor = color,
-        customBgColor = bgColor;
+  }) : type = SreaBadgeType.custom,
+       customColor = color,
+       customBgColor = bgColor;
 
   Color get _color {
     if (type == SreaBadgeType.custom) return customColor!;
@@ -138,10 +139,7 @@ class SreaBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: _getPadding(context),
-      decoration: BoxDecoration(
-        color: _bgColor,
-        borderRadius: SreaRadius.pill,
-      ),
+      decoration: BoxDecoration(color: _bgColor, borderRadius: SreaRadius.pill),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -149,12 +147,18 @@ class SreaBadge extends StatelessWidget {
             Container(
               width: _getDotSize(context),
               height: _getDotSize(context),
-              decoration: BoxDecoration(
-                color: _color,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: _color, shape: BoxShape.circle),
             ),
             SizedBox(width: _getDotSize(context) * 0.8),
+          ],
+          // Additional visual distinction for critical: add warning icon
+          if (type == SreaBadgeType.critical) ...[
+            Icon(
+              Icons.warning_rounded,
+              size: _getFontSize(context) - 2,
+              color: _textColor,
+            ),
+            SizedBox(width: _getDotSize(context) * 0.5),
           ],
           Text(
             label,
