@@ -1,6 +1,8 @@
 // File: srea_sidebar.dart
+// Path: mobile_user_app/lib/widgets/srea_sidebar.dart
 
 import 'package:flutter/material.dart';
+import 'dart:io';
 import 'package:srea_shared/srea_shared.dart';
 import '../screens/about_screen.dart';
 
@@ -11,6 +13,7 @@ class SreaSidebar extends StatelessWidget {
   final String activeRoute;
   final void Function(String route) onNavigate;
   final VoidCallback onLogout;
+  final String? profileImageUrl; // supports network URL or local file path
 
   const SreaSidebar({
     super.key,
@@ -20,6 +23,7 @@ class SreaSidebar extends StatelessWidget {
     this.activeRoute = '/home',
     required this.onNavigate,
     required this.onLogout,
+    this.profileImageUrl,
   });
 
   @override
@@ -41,15 +45,50 @@ class SreaSidebar extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Avatar
                   Container(
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
                       color: SreaColors.surface,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 2,
+                      ),
                     ),
-                    child: const Icon(Icons.person_outline_rounded, color: SreaColors.primary, size: 38),
+                    child: ClipOval(
+                      child:
+                          profileImageUrl != null && profileImageUrl!.isNotEmpty
+                          ? (profileImageUrl!.startsWith('http')
+                                ? Image.network(
+                                    profileImageUrl!,
+                                    width: 72,
+                                    height: 72,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.person_outline_rounded,
+                                      size: 38,
+                                      color: SreaColors.primary,
+                                    ),
+                                  )
+                                : Image.file(
+                                    File(profileImageUrl!),
+                                    width: 72,
+                                    height: 72,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.person_outline_rounded,
+                                      size: 38,
+                                      color: SreaColors.primary,
+                                    ),
+                                  ))
+                          : const Icon(
+                              Icons.person_outline_rounded,
+                              size: 38,
+                              color: SreaColors.primary,
+                            ),
+                    ),
                   ),
                   SizedBox(height: SreaSpacing.md(context)),
                   Text(
@@ -62,7 +101,9 @@ class SreaSidebar extends StatelessWidget {
                   SizedBox(height: SreaSpacing.xs(context)),
                   Text(
                     email,
-                    style: SreaText.bodySmall(context).copyWith(color: SreaColors.bottomNavInactive),
+                    style: SreaText.bodySmall(
+                      context,
+                    ).copyWith(color: SreaColors.bottomNavInactive),
                   ),
                   SizedBox(height: SreaSpacing.sm(context)),
                   if (isVerified)
@@ -71,11 +112,18 @@ class SreaSidebar extends StatelessWidget {
                         horizontal: SreaSpacing.sm(context),
                         vertical: SreaSpacing.xs(context),
                       ),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: SreaRadius.pill),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: SreaRadius.pill,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.verified_rounded, size: 14, color: SreaColors.primary),
+                          const Icon(
+                            Icons.verified_rounded,
+                            size: 14,
+                            color: SreaColors.primary,
+                          ),
                           SizedBox(width: SreaSpacing.xs(context)),
                           Text(
                             'Verified',
@@ -96,16 +144,24 @@ class SreaSidebar extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: SreaRadius.pill,
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.pending_outlined, size: 14, color: SreaColors.textOnPrimary),
+                          const Icon(
+                            Icons.pending_outlined,
+                            size: 14,
+                            color: SreaColors.textOnPrimary,
+                          ),
                           SizedBox(width: SreaSpacing.xs(context)),
                           Text(
                             'Pending Verification',
-                            style: SreaText.label(context).copyWith(color: SreaColors.textOnPrimary),
+                            style: SreaText.label(
+                              context,
+                            ).copyWith(color: SreaColors.textOnPrimary),
                           ),
                         ],
                       ),
@@ -171,7 +227,10 @@ class SreaSidebar extends StatelessWidget {
                     onTap: onNavigate,
                   ),
                   SizedBox(height: SreaSpacing.sm(context)),
-                  Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
+                  Container(
+                    height: 1,
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
                   SizedBox(height: SreaSpacing.sm(context)),
                   _SidebarItem(
                     icon: Icons.privacy_tip_outlined,
@@ -228,13 +287,18 @@ class _SidebarItem extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: SreaSpacing.xs(context)),
       child: Material(
-        color: _isActive ? Colors.white.withValues(alpha: 0.15) : Colors.transparent,
+        color: _isActive
+            ? Colors.white.withValues(alpha: 0.15)
+            : Colors.transparent,
         borderRadius: SreaRadius.input,
         child: InkWell(
           onTap: () {
             Navigator.pop(context);
             if (route == '/about') {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen()));
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AboutScreen()),
+              );
             } else {
               onTap(route);
             }
@@ -251,20 +315,31 @@ class _SidebarItem extends StatelessWidget {
               children: [
                 Icon(
                   _isActive ? activeIcon : icon,
-                  color: _isActive ? SreaColors.textOnPrimary : SreaColors.bottomNavInactive,
+                  color: _isActive
+                      ? SreaColors.textOnPrimary
+                      : SreaColors.bottomNavInactive,
                   size: 22,
                 ),
                 SizedBox(width: SreaSpacing.avatarGap(context)),
                 Text(
                   label,
                   style: SreaText.bodySmall(context).copyWith(
-                    color: _isActive ? SreaColors.textOnPrimary : SreaColors.bottomNavInactive,
+                    color: _isActive
+                        ? SreaColors.textOnPrimary
+                        : SreaColors.bottomNavInactive,
                     fontWeight: _isActive ? FontWeight.w700 : FontWeight.w400,
                   ),
                 ),
                 if (_isActive) ...[
                   const Spacer(),
-                  Container(width: 4, height: 4, decoration: const BoxDecoration(color: SreaColors.textOnPrimary, shape: BoxShape.circle)),
+                  Container(
+                    width: 4,
+                    height: 4,
+                    decoration: const BoxDecoration(
+                      color: SreaColors.textOnPrimary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -298,7 +373,11 @@ class _SidebarLogoutButton extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.logout_rounded, color: SreaColors.textOnPrimary, size: 22),
+              const Icon(
+                Icons.logout_rounded,
+                color: SreaColors.textOnPrimary,
+                size: 22,
+              ),
               SizedBox(width: SreaSpacing.avatarGap(context)),
               Text(
                 'Log out',

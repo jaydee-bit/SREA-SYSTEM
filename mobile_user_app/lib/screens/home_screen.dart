@@ -6,6 +6,8 @@ import 'package:srea_shared/srea_shared.dart';
 import '../widgets/srea_sidebar.dart';
 import '../widgets/srea_bottom_nav.dart';
 import 'auth/login_screen.dart';
+import 'complete_profile_screen.dart';
+import 'incident_report_screen.dart';
 import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -18,16 +20,19 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
+  // TOGGLE THESE FLAGS TO TEST DIFFERENT STATES
+  final bool _isResident = true; // true = resident, false = non-resident
+  final bool _hasAddressAndId = false; // false = unverified, true = pending
+  final bool _isVerified = false; // false = not admin-verified, true = verified
+
+  // Mock user data – replace with API
   final String _userName = 'Leon S. Kennedy';
   final String _email = 'leon@gmail.com';
   final String _barangay = 'Brgy. Poblacion';
-  final bool _isVerified = true;
 
   final bool _hasActiveAlert = false;
   final String _activeAlertLevel = 'none';
 
-  // Mock recent updates – unified feed
-  // Announcements have badgeType = null → no badge
   final List<Map<String, dynamic>> _recentUpdates = [
     {
       'type': 'traffic',
@@ -59,8 +64,14 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   final List<Map<String, String>> _goBagItems = [
-    {'text': 'Valid ID, Birth Certificate and other important documents in a waterproof folder.'},
-    {'text': '3-day supply of water (1 liter/person/day) and non-perishable food.'},
+    {
+      'text':
+          'Valid ID, Birth Certificate and other important documents in a waterproof folder.',
+    },
+    {
+      'text':
+          '3-day supply of water (1 liter/person/day) and non-perishable food.',
+    },
     {'text': 'First aid kit, flashlight, extra batteries, and whistle.'},
     {'text': 'Nearest evacuation center location saved on your phone.'},
     {'text': 'Emergency contact numbers of family, barangay, and NDRRMC.'},
@@ -73,12 +84,18 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
       case 1:
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Announcements coming soon'), duration: Duration(seconds: 1)),
+          SnackBar(
+            content: Text('Announcements coming soon'),
+            duration: Duration(seconds: 1),
+          ),
         );
         break;
       case 2:
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Traffic advisories coming soon'), duration: Duration(seconds: 1)),
+          SnackBar(
+            content: Text('Traffic advisories coming soon'),
+            duration: Duration(seconds: 1),
+          ),
         );
         break;
       case 3:
@@ -100,22 +117,29 @@ class _HomeScreenState extends State<HomeScreen> {
         break;
       case '/announcements':
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Announcements coming soon'), duration: Duration(seconds: 1)),
+          SnackBar(
+            content: Text('Announcements coming soon'),
+            duration: Duration(seconds: 1),
+          ),
         );
         break;
       case '/traffic':
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Traffic advisories coming soon'), duration: Duration(seconds: 1)),
+          SnackBar(
+            content: Text('Traffic advisories coming soon'),
+            duration: Duration(seconds: 1),
+          ),
         );
         break;
       case '/incidents':
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Incident reports coming soon'), duration: Duration(seconds: 1)),
-        );
+        _navigateToIncidentReport();
         break;
       case '/call-history':
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Emergency call history coming soon'), duration: Duration(seconds: 1)),
+          SnackBar(
+            content: Text('Emergency call history coming soon'),
+            duration: Duration(seconds: 1),
+          ),
         );
         break;
       case '/privacy':
@@ -125,6 +149,85 @@ class _HomeScreenState extends State<HomeScreen> {
       default:
         debugPrint('Navigate to $route');
     }
+  }
+
+  void _navigateToIncidentReport() {
+    if (!_isResident) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Only San Rafael residents can report incidents.'),
+          backgroundColor: SreaColors.error,
+        ),
+      );
+      return;
+    }
+    if (!_hasAddressAndId) {
+      _showLockDialog(
+        title: 'Complete Your Profile',
+        message:
+            'You need to provide your address and valid ID before you can report incidents.',
+        buttonText: 'Complete Now',
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CompleteProfileScreen()),
+        ),
+      );
+      return;
+    }
+    if (!_isVerified) {
+      _showLockDialog(
+        title: 'Verification Pending',
+        message:
+            'Your account is under review. You will be able to report incidents once verified by the admin.',
+        buttonText: 'OK',
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const IncidentReportScreen()),
+    );
+  }
+
+  void _showLockDialog({
+    required String title,
+    required String message,
+    required String buttonText,
+    VoidCallback? onPressed,
+  }) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: SreaRadius.modal),
+        title: Text(
+          title,
+          style: SreaText.titleLarge(
+            context,
+          ).copyWith(color: SreaColors.textPrimary),
+        ),
+        content: Text(
+          message,
+          style: SreaText.bodySmall(
+            context,
+          ).copyWith(color: SreaColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              onPressed?.call();
+            },
+            child: Text(
+              buttonText,
+              style: SreaText.bodySmall(context).copyWith(
+                color: SreaColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _onLogout() {
@@ -146,6 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
         activeRoute: '/home',
         onNavigate: _onSidebarNavigate,
         onLogout: _onLogout,
+        profileImageUrl: null,
       ),
       body: SafeArea(
         child: Column(
@@ -161,6 +265,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         ? _ActiveAlertBanner(level: _activeAlertLevel)
                         : const SreaAllClearBanner(),
                     const SizedBox(height: 20),
+
+                    // Show appropriate banner for residents
+                    if (_isResident && !_hasAddressAndId) ...[
+                      const _CompleteProfileBanner(),
+                      const SizedBox(height: 16),
+                    ] else if (_isResident && !_isVerified) ...[
+                      const _PendingVerificationBanner(),
+                      const SizedBox(height: 16),
+                    ],
 
                     _SectionLabel(title: 'Emergency Preparedness'),
                     const SizedBox(height: 10),
@@ -189,13 +302,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     else
                       Column(
                         children: _recentUpdates.map((update) {
-                          // Conditional badge: show only for alerts/traffic, not announcements
                           final badgeWidget = update['badgeType'] != null
                               ? SreaBadge(
                                   type: update['badgeType'] as SreaBadgeType,
                                   label: update['badgeLabel'] as String,
                                 )
-                              : const SizedBox.shrink(); // empty spacer when no badge
+                              : const SizedBox.shrink();
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: SreaAlertCard(
@@ -232,9 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// AppBar
-// ─────────────────────────────────────────────────────────────
+// ─── AppBar ─────────────────────────────────────────────────
 class _SreaAppBar extends StatelessWidget {
   final String userName;
   const _SreaAppBar({required this.userName});
@@ -254,7 +364,11 @@ class _SreaAppBar extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: SreaRadius.input,
               ),
-              child: const Icon(Icons.menu_rounded, color: SreaColors.textOnPrimary, size: 22),
+              child: const Icon(
+                Icons.menu_rounded,
+                color: SreaColors.textOnPrimary,
+                size: 22,
+              ),
             ),
           ),
           SizedBox(width: SreaSpacing.iconGap(context)),
@@ -270,7 +384,11 @@ class _SreaAppBar extends StatelessWidget {
           Stack(
             children: [
               IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: SreaColors.textOnPrimary, size: 24),
+                icon: const Icon(
+                  Icons.notifications_outlined,
+                  color: SreaColors.textOnPrimary,
+                  size: 24,
+                ),
                 onPressed: () {},
               ),
               Positioned(
@@ -279,7 +397,10 @@ class _SreaAppBar extends StatelessWidget {
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(color: SreaColors.buttonReport, shape: BoxShape.circle),
+                  decoration: const BoxDecoration(
+                    color: SreaColors.buttonReport,
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
             ],
@@ -290,37 +411,47 @@ class _SreaAppBar extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Active alert banner
-// ─────────────────────────────────────────────────────────────
+// ─── Active alert banner ────────────────────────────────────
 class _ActiveAlertBanner extends StatelessWidget {
   final String level;
   const _ActiveAlertBanner({required this.level});
 
   Color get _color {
     switch (level) {
-      case 'critical': return SreaColors.critical;
-      case 'high': return SreaColors.high;
-      case 'medium': return SreaColors.medium;
-      default: return SreaColors.low;
+      case 'critical':
+        return SreaColors.critical;
+      case 'high':
+        return SreaColors.high;
+      case 'medium':
+        return SreaColors.medium;
+      default:
+        return SreaColors.low;
     }
   }
 
   Color get _bgColor {
     switch (level) {
-      case 'critical': return SreaColors.criticalBg;
-      case 'high': return SreaColors.highBg;
-      case 'medium': return SreaColors.mediumBg;
-      default: return SreaColors.lowBg;
+      case 'critical':
+        return SreaColors.criticalBg;
+      case 'high':
+        return SreaColors.highBg;
+      case 'medium':
+        return SreaColors.mediumBg;
+      default:
+        return SreaColors.lowBg;
     }
   }
 
   String get _message {
     switch (level) {
-      case 'critical': return 'Critical alert active in your area!';
-      case 'high': return 'High-risk alert in your area';
-      case 'medium': return 'Advisory issued for your area';
-      default: return 'Low-level alert in your area';
+      case 'critical':
+        return 'Critical alert active in your area!';
+      case 'high':
+        return 'High-risk alert in your area';
+      case 'medium':
+        return 'Advisory issued for your area';
+      default:
+        return 'Low-level alert in your area';
     }
   }
 
@@ -338,14 +469,19 @@ class _ActiveAlertBanner extends StatelessWidget {
           Container(
             width: 36,
             height: 36,
-            decoration: BoxDecoration(color: _color.withValues(alpha: 0.15), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: _color.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
             child: Icon(Icons.warning_amber_rounded, color: _color, size: 20),
           ),
           SizedBox(width: SreaSpacing.iconGap(context)),
           Expanded(
             child: Text(
               _message,
-              style: SreaText.bodySmall(context).copyWith(color: _color, fontWeight: FontWeight.w700),
+              style: SreaText.bodySmall(
+                context,
+              ).copyWith(color: _color, fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -354,9 +490,7 @@ class _ActiveAlertBanner extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Section label
-// ─────────────────────────────────────────────────────────────
+// ─── Section label ──────────────────────────────────────────
 class _SectionLabel extends StatelessWidget {
   final String title;
   const _SectionLabel({required this.title});
@@ -374,9 +508,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Empty state for recent updates
-// ─────────────────────────────────────────────────────────────
+// ─── Empty alerts state ─────────────────────────────────────
 class _EmptyAlerts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -390,11 +522,17 @@ class _EmptyAlerts extends StatelessWidget {
       child: Center(
         child: Column(
           children: [
-            const Icon(Icons.check_circle_outline_rounded, color: SreaColors.low, size: 32),
+            const Icon(
+              Icons.check_circle_outline_rounded,
+              color: SreaColors.low,
+              size: 32,
+            ),
             const SizedBox(height: 8),
             Text(
               'No recent updates',
-              style: SreaText.bodySmall(context).copyWith(color: SreaColors.textSecondary),
+              style: SreaText.bodySmall(
+                context,
+              ).copyWith(color: SreaColors.textSecondary),
             ),
           ],
         ),
@@ -403,9 +541,7 @@ class _EmptyAlerts extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Preparedness banner (static, no API)
-// ─────────────────────────────────────────────────────────────
+// ─── Preparedness banner ────────────────────────────────────
 class _PreparednessBanner extends StatelessWidget {
   const _PreparednessBanner();
 
@@ -434,7 +570,11 @@ class _PreparednessBanner extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.safety_check_rounded, color: SreaColors.textOnPrimary, size: 32),
+              const Icon(
+                Icons.safety_check_rounded,
+                color: SreaColors.textOnPrimary,
+                size: 32,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -454,10 +594,9 @@ class _PreparednessBanner extends StatelessWidget {
             '• Save emergency contacts: DRRMO, Barangay, NDRRMC\n'
             '• Monitor official weather updates from PAGASA\n'
             '• Stay tuned to SREA alerts for real‑time information',
-            style: SreaText.bodySmall(context).copyWith(
-              color: SreaColors.textOnPrimary,
-              height: 1.6,
-            ),
+            style: SreaText.bodySmall(
+              context,
+            ).copyWith(color: SreaColors.textOnPrimary, height: 1.6),
           ),
           const SizedBox(height: 16),
           Container(
@@ -469,7 +608,11 @@ class _PreparednessBanner extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.phone_in_talk_rounded, size: 14, color: SreaColors.textOnPrimary),
+                const Icon(
+                  Icons.phone_in_talk_rounded,
+                  size: 14,
+                  color: SreaColors.textOnPrimary,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'Emergency Hotline: (044) 123-4567',
@@ -487,9 +630,114 @@ class _PreparednessBanner extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Go-Bag checklist card
-// ─────────────────────────────────────────────────────────────
+// ─── Complete Profile Banner (Blue) ─────────────────────────
+class _CompleteProfileBanner extends StatelessWidget {
+  const _CompleteProfileBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: SreaSpacing.cardPaddingSmall(context),
+      decoration: BoxDecoration(
+        color: SreaColors.primaryLight,
+        borderRadius: SreaRadius.card,
+        border: Border.all(color: SreaColors.primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.edit_document, color: SreaColors.primary, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Complete your profile',
+                  style: SreaText.bodySmall(context).copyWith(
+                    color: SreaColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  'Add your address and valid ID to start reporting incidents.',
+                  style: SreaText.label(
+                    context,
+                  ).copyWith(color: SreaColors.primary),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const CompleteProfileScreen(),
+                ),
+              );
+            },
+            child: Text(
+              'Complete Now',
+              style: SreaText.label(context).copyWith(
+                color: SreaColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Pending Verification Banner (Yellow) ───────────────────
+class _PendingVerificationBanner extends StatelessWidget {
+  const _PendingVerificationBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: SreaSpacing.cardPaddingSmall(context),
+      decoration: BoxDecoration(
+        color: SreaColors.mediumBg,
+        borderRadius: SreaRadius.card,
+        border: Border.all(color: SreaColors.medium.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.pending_actions_rounded,
+            color: SreaColors.medium,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Verification pending',
+                  style: SreaText.bodySmall(context).copyWith(
+                    color: SreaColors.medium,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  'Your account is under review. You\'ll be notified when approved.',
+                  style: SreaText.label(
+                    context,
+                  ).copyWith(color: SreaColors.medium),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Go-Bag card ────────────────────────────────────────────
 class _GoBagCard extends StatelessWidget {
   final List<Map<String, String>> items;
   const _GoBagCard({required this.items});
@@ -509,7 +757,11 @@ class _GoBagCard extends StatelessWidget {
                   color: SreaColors.primaryLight,
                   borderRadius: SreaRadius.input,
                 ),
-                child: const Icon(Icons.backpack_outlined, color: SreaColors.primary, size: 20),
+                child: const Icon(
+                  Icons.backpack_outlined,
+                  color: SreaColors.primary,
+                  size: 20,
+                ),
               ),
               SizedBox(width: SreaSpacing.iconGap(context)),
               Expanded(
@@ -525,7 +777,9 @@ class _GoBagCard extends StatelessWidget {
                     ),
                     Text(
                       'Be ready in case of evacuation',
-                      style: SreaText.label(context).copyWith(color: SreaColors.textSecondary),
+                      style: SreaText.label(
+                        context,
+                      ).copyWith(color: SreaColors.textSecondary),
                     ),
                   ],
                 ),
@@ -539,7 +793,9 @@ class _GoBagCard extends StatelessWidget {
             final index = entry.key;
             final item = entry.value;
             return Padding(
-              padding: EdgeInsets.only(bottom: index < items.length - 1 ? 10 : 0),
+              padding: EdgeInsets.only(
+                bottom: index < items.length - 1 ? 10 : 0,
+              ),
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -552,7 +808,10 @@ class _GoBagCard extends StatelessWidget {
                     Container(
                       width: 24,
                       height: 24,
-                      decoration: BoxDecoration(color: SreaColors.primary, shape: BoxShape.circle),
+                      decoration: BoxDecoration(
+                        color: SreaColors.primary,
+                        shape: BoxShape.circle,
+                      ),
                       child: Center(
                         child: Text(
                           '${index + 1}',
@@ -567,10 +826,9 @@ class _GoBagCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         item['text']!,
-                        style: SreaText.bodySmall(context).copyWith(
-                          color: SreaColors.textPrimary,
-                          height: 1.5,
-                        ),
+                        style: SreaText.bodySmall(
+                          context,
+                        ).copyWith(color: SreaColors.textPrimary, height: 1.5),
                       ),
                     ),
                   ],

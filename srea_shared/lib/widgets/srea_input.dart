@@ -1,4 +1,5 @@
 // File: srea_input.dart
+// Path: srea_shared/lib/widgets/srea_input.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,7 +59,10 @@ InputDecoration _sreaInputDecoration({
     ),
     disabledBorder: OutlineInputBorder(
       borderRadius: SreaRadius.input,
-      borderSide: BorderSide(color: SreaColors.border.withOpacity(0.5), width: 1),
+      borderSide: BorderSide(
+        color: SreaColors.border.withOpacity(0.5),
+        width: 1,
+      ),
     ),
   );
 }
@@ -66,7 +70,6 @@ InputDecoration _sreaInputDecoration({
 class SreaInputLabel extends StatelessWidget {
   final String label;
   final bool required;
-
   const SreaInputLabel({super.key, required this.label, this.required = false});
 
   @override
@@ -84,11 +87,10 @@ class SreaInputLabel extends StatelessWidget {
             ? [
                 TextSpan(
                   text: ' *',
-                  style: SreaText.bodySmall(context).copyWith(
-                    fontSize: labelSize,
-                    color: SreaColors.error,
-                  ),
-                )
+                  style: SreaText.bodySmall(
+                    context,
+                  ).copyWith(fontSize: labelSize, color: SreaColors.error),
+                ),
               ]
             : [],
       ),
@@ -244,6 +246,10 @@ class SreaDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ensure value is either null or exists in items to avoid assertion error
+    final isValidValue = value == null || items.contains(value);
+    final effectiveValue = isValidValue ? value : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -251,13 +257,12 @@ class SreaDropdown<T> extends StatelessWidget {
           SreaInputLabel(label: label!, required: required),
           const SizedBox(height: 6),
         ],
-        // Inside SreaDropdown's build method, change DropdownButtonFormField to:
         DropdownButtonFormField<T>(
-          initialValue: value,
+          value: effectiveValue,
           validator: validator,
           onChanged: onChanged,
-          isExpanded: true, // ← add this to make the button expand
-          menuMaxHeight: 300, // ← limit menu height
+          isExpanded: true,
+          menuMaxHeight: 300,
           style: SreaText.bodySmall(context).copyWith(
             fontSize: _responsiveInputFontSize(context),
             color: SreaColors.textPrimary,

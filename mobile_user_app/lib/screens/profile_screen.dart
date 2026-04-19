@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:srea_shared/srea_shared.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'auth/login_screen.dart'; // ← added import for LoginScreen
+import 'auth/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,6 +17,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   // Mock user data – replace with API
+  // Change these values to test different states
   final Map<String, dynamic> _user = {
     'firstName': 'Leon',
     'middleName': 'Scott',
@@ -25,79 +26,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'phone': '09123456789',
     'gender': 'Male',
     'birthDate': '1990-05-15',
-    'barangay': 'Poblacion',
-    'street': 'Rizal St. #123',
-    'isVerified': true,
-    'role': 'resident', // or 'non_resident'
-    'validIdType': 'Driver\'s License',
-    'validIdPhoto': null,
+    'barangay': '', // ← empty = not provided
+    'street': '', // ← empty = not provided
+    'isVerified': false, // ← false = not admin‑verified
+    'role': 'resident',
+    'validIdType': '', // ← empty = not provided
+    'validIdPhoto': null, // ← null = no ID uploaded
+    'profileImage': null,
+    'isProfileComplete': false,
   };
 
-  // Editable copies
   late TextEditingController _firstNameController;
   late TextEditingController _middleNameController;
   late TextEditingController _lastNameController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
-  late TextEditingController _streetController;
   late TextEditingController _birthDateController;
 
   String? _selectedGender;
-  String? _selectedBarangay;
-  String? _selectedValidIdType;
-  File? _idImage;
+  File? _profileImage;
 
   bool _isEditing = false;
   bool _isLoading = false;
-  bool _showChangePassword = false;
+  bool _isUploadingProfileImage = false;
 
   final List<String> _genderOptions = ['Male', 'Female', 'Prefer not to say'];
-  final List<String> _barangayOptions = [
-    'Banca-Banca',
-    'BMA – Balagtas',
-    'Caingin',
-    'Capihan',
-    'Coral na Bato',
-    'Cruz na Daan',
-    'Dagat-Dagatan',
-    'Diliman I',
-    'Diliman II',
-    'Libis',
-    'Lico',
-    'Maasim',
-    'Mabalas-Balas',
-    'Maguinao',
-    'Maronquillo',
-    'Paco',
-    'Pansumaloc',
-    'Pantubig',
-    'Pasong Bangkal',
-    'Pasong Callos',
-    'Pasong Intsik',
-    'Pinacpinacan',
-    'Poblacion',
-    'Pulo',
-    'Pulong Bayabas',
-    'Salapungan',
-    'Sampaloc',
-    'San Agustin',
-    'San Roque',
-    'Sapang Pahalang',
-    'Talacsan',
-    'Tambubong',
-    'Tukod',
-    'Ulingao',
-  ];
-  final List<String> _validIdOptions = [
-    'PhilSys / National ID',
-    'Driver\'s License',
-    'Passport',
-    'Voter\'s ID',
-    'Postal ID',
-    'SSS ID',
-    'GSIS ID',
-    'Barangay ID',
-  ];
 
   @override
   void initState() {
@@ -113,58 +66,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _lastNameController = TextEditingController(text: _user['lastName']);
     _emailController = TextEditingController(text: _user['email']);
     _phoneController = TextEditingController(text: _user['phone']);
-    _streetController = TextEditingController(text: _user['street']);
     _birthDateController = TextEditingController(text: _user['birthDate']);
     _selectedGender = _user['gender'];
-    _selectedBarangay = _user['barangay'];
-    _selectedValidIdType = _user['validIdType'];
-  }
-
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _middleNameController.dispose();
-    _lastNameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _streetController.dispose();
-    _birthDateController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickBirthDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 365 * 20)),
-      firstDate: DateTime(1920),
-      lastDate: DateTime.now(),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: SreaColors.primary,
-            onPrimary: SreaColors.textOnPrimary,
-            surface: SreaColors.surface,
-          ),
-        ),
-        child: child!,
-      ),
-    );
-    if (picked != null) {
-      _birthDateController.text = picked.toIso8601String().split('T').first;
+    if (_user['profileImage'] != null && _user['profileImage'] is String) {
+      _profileImage = File(_user['profileImage']);
     }
   }
 
-  Future<void> _pickIdImage() async {
+  Future<void> _pickProfileImage() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      setState(() => _idImage = File(picked.path));
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(borderRadius: SreaRadius.bottomSheet),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library,
+                color: SreaColors.primary,
+              ),
+              title: const Text('Choose from Gallery'),
+              onTap: () async {
+                Navigator.pop(context);
+                await _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: SreaColors.primary),
+              title: const Text('Take a Photo'),
+              onTap: () async {
+                Navigator.pop(context);
+                await _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    setState(() => _isUploadingProfileImage = true);
+    final picker = ImagePicker();
+    try {
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      if (picked != null) {
+        setState(() => _profileImage = File(picked.path));
+        _user['profileImage'] = picked.path;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Profile picture updated',
+                style: SreaText.bodySmall(
+                  context,
+                ).copyWith(color: Colors.white),
+              ),
+              backgroundColor: SreaColors.buttonUpdate,
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to update profile picture',
+              style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+            ),
+            backgroundColor: SreaColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingProfileImage = false);
     }
   }
 
   Future<void> _saveChanges() async {
     setState(() => _isLoading = true);
-    // TODO: API call to update profile
+    // TODO: API call to update basic info (name, email, phone, gender)
     await Future.delayed(const Duration(seconds: 1));
     setState(() {
       _isLoading = false;
@@ -183,13 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // FIXED: Logout now works correctly
   Future<void> _logout() async {
-    // TODO: Clear stored tokens, SharedPreferences, etc.
-    // Example:
-    // final prefs = await SharedPreferences.getInstance();
-    // await prefs.clear();
-
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -200,6 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final isResident = _user['role'] == 'resident';
+    final fullName = '${_firstNameController.text} ${_lastNameController.text}';
 
     return Scaffold(
       backgroundColor: SreaColors.background,
@@ -253,347 +238,187 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: SreaSpacing.screenScrollPadding(context),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar section
-              Center(
-                child: Column(
-                  children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: SreaColors.primaryLight,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: SreaColors.primary, width: 2),
-                      ),
-                      child: const Icon(
-                        Icons.person_rounded,
-                        size: 50,
-                        color: SreaColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_user['isVerified'])
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: SreaColors.lowBg,
-                          borderRadius: SreaRadius.pill,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.verified_rounded,
-                              size: 14,
-                              color: SreaColors.low,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Verified Account',
-                              style: SreaText.label(
-                                context,
-                              ).copyWith(color: SreaColors.low),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: SreaColors.criticalBg,
-                          borderRadius: SreaRadius.pill,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.pending_outlined,
-                              size: 14,
-                              color: SreaColors.critical,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Pending Verification',
-                              style: SreaText.label(
-                                context,
-                              ).copyWith(color: SreaColors.critical),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
+              _ProfileHeader(
+                userName: fullName,
+                email: _emailController.text,
+                isVerified: _user['isVerified'],
+                profileImage: _profileImage,
+                isUploading: _isUploadingProfileImage,
+                onImageTap: _pickProfileImage,
               ),
-
-              const SizedBox(height: 24),
-
-              // Personal Information section
-              _SectionHeader(title: 'Personal Information'),
-              const SizedBox(height: 12),
-
-              SreaCard(
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _ProfileField(
-                      label: 'First Name',
-                      value: _firstNameController.text,
-                      isEditing: _isEditing,
-                      onEdit: (v) => _firstNameController.text = v,
-                      child: SreaTextField(
-                        hint: 'First Name',
-                        controller: _firstNameController,
-                        required: true,
-                      ),
-                    ),
-                    const Divider(height: 1, color: SreaColors.divider),
-                    _ProfileField(
-                      label: 'Middle Name',
-                      value: _middleNameController.text,
-                      isEditing: _isEditing,
-                      onEdit: (v) => _middleNameController.text = v,
-                      child: SreaTextField(
-                        hint: 'Middle Name',
-                        controller: _middleNameController,
-                      ),
-                    ),
-                    const Divider(height: 1, color: SreaColors.divider),
-                    _ProfileField(
-                      label: 'Last Name',
-                      value: _lastNameController.text,
-                      isEditing: _isEditing,
-                      onEdit: (v) => _lastNameController.text = v,
-                      child: SreaTextField(
-                        hint: 'Last Name',
-                        controller: _lastNameController,
-                        required: true,
-                      ),
-                    ),
-                    const Divider(height: 1, color: SreaColors.divider),
-                    _ProfileField(
-                      label: 'Gender',
-                      value: _selectedGender ?? '',
-                      isEditing: _isEditing,
-                      onEdit: (v) => setState(() => _selectedGender = v),
-                      child: SreaDropdown<String>(
-                        hint: 'Select Gender',
-                        value: _selectedGender,
-                        items: _genderOptions,
-                        onChanged: (v) => setState(() => _selectedGender = v),
-                      ),
-                    ),
-                    const Divider(height: 1, color: SreaColors.divider),
-                    _ProfileField(
-                      label: 'Birth Date',
-                      value: _birthDateController.text,
-                      isEditing: _isEditing,
-                      onEdit: (_) => _pickBirthDate(),
-                      child: TextFormField(
-                        controller: _birthDateController,
-                        readOnly: true,
-                        onTap: _pickBirthDate,
-                        style: SreaText.bodySmall(
-                          context,
-                        ).copyWith(color: SreaColors.textPrimary),
-                        decoration: InputDecoration(
-                          hintText: 'YYYY-MM-DD',
-                          suffixIcon: const Icon(
-                            Icons.calendar_today_outlined,
-                            size: 18,
+                    _SectionHeader(title: 'Personal Information'),
+                    const SizedBox(height: 12),
+                    SreaCard(
+                      child: Column(
+                        children: [
+                          _ProfileField(
+                            label: 'First Name',
+                            value: _firstNameController.text,
+                            isEditing: _isEditing,
+                            onEdit: (v) => _firstNameController.text = v,
+                            child: SreaTextField(
+                              hint: 'First Name',
+                              controller: _firstNameController,
+                              required: true,
+                            ),
                           ),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Contact Information section
-              _SectionHeader(title: 'Contact Information'),
-              const SizedBox(height: 12),
-
-              SreaCard(
-                child: Column(
-                  children: [
-                    _ProfileField(
-                      label: 'Email',
-                      value: _emailController.text,
-                      isEditing: _isEditing,
-                      onEdit: (v) => _emailController.text = v,
-                      child: SreaTextField(
-                        hint: 'Email',
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        required: true,
-                      ),
-                    ),
-                    const Divider(height: 1, color: SreaColors.divider),
-                    _ProfileField(
-                      label: 'Phone',
-                      value: _phoneController.text,
-                      isEditing: _isEditing,
-                      onEdit: (v) => _phoneController.text = v,
-                      child: SreaTextField(
-                        hint: '09XXXXXXXXX',
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
+                          const Divider(height: 1, color: SreaColors.divider),
+                          _ProfileField(
+                            label: 'Middle Name',
+                            value: _middleNameController.text,
+                            isEditing: _isEditing,
+                            onEdit: (v) => _middleNameController.text = v,
+                            child: SreaTextField(
+                              hint: 'Middle Name',
+                              controller: _middleNameController,
+                            ),
+                          ),
+                          const Divider(height: 1, color: SreaColors.divider),
+                          _ProfileField(
+                            label: 'Last Name',
+                            value: _lastNameController.text,
+                            isEditing: _isEditing,
+                            onEdit: (v) => _lastNameController.text = v,
+                            child: SreaTextField(
+                              hint: 'Last Name',
+                              controller: _lastNameController,
+                              required: true,
+                            ),
+                          ),
+                          const Divider(height: 1, color: SreaColors.divider),
+                          _ProfileField(
+                            label: 'Gender',
+                            value: _selectedGender ?? '',
+                            isEditing: _isEditing,
+                            onEdit: (v) => setState(() => _selectedGender = v),
+                            child: SreaDropdown<String>(
+                              hint: 'Select Gender',
+                              value: _selectedGender,
+                              items: _genderOptions,
+                              onChanged: (v) =>
+                                  setState(() => _selectedGender = v),
+                            ),
+                          ),
+                          const Divider(height: 1, color: SreaColors.divider),
+                          _ReadOnlyField(
+                            label: 'Birth Date',
+                            value: _birthDateController.text.isEmpty
+                                ? 'Not set'
+                                : _birthDateController.text,
+                          ),
                         ],
-                        required: true,
                       ),
                     ),
+                    const SizedBox(height: 20),
+                    _SectionHeader(title: 'Contact Information'),
+                    const SizedBox(height: 12),
+                    SreaCard(
+                      child: Column(
+                        children: [
+                          _ProfileField(
+                            label: 'Email',
+                            value: _emailController.text,
+                            isEditing: _isEditing,
+                            onEdit: (v) => _emailController.text = v,
+                            child: SreaTextField(
+                              hint: 'Email',
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              required: true,
+                            ),
+                          ),
+                          const Divider(height: 1, color: SreaColors.divider),
+                          _ProfileField(
+                            label: 'Phone',
+                            value: _phoneController.text,
+                            isEditing: _isEditing,
+                            onEdit: (v) => _phoneController.text = v,
+                            child: SreaTextField(
+                              hint: '09XXXXXXXXX',
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              required: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isResident) ...[
+                      const SizedBox(height: 20),
+                      _SectionHeader(title: 'Address & Verification'),
+                      const SizedBox(height: 12),
+                      SreaCard(
+                        child: Column(
+                          children: [
+                            _ReadOnlyField(label: 'Province', value: 'Bulacan'),
+                            const Divider(height: 1, color: SreaColors.divider),
+                            _ReadOnlyField(
+                              label: 'Municipality',
+                              value: 'San Rafael',
+                            ),
+                            const Divider(height: 1, color: SreaColors.divider),
+                            _ReadOnlyField(
+                              label: 'Barangay',
+                              value: _user['barangay'].isEmpty
+                                  ? 'Not set'
+                                  : _user['barangay'],
+                            ),
+                            const Divider(height: 1, color: SreaColors.divider),
+                            _ReadOnlyField(
+                              label: 'Street',
+                              value: _user['street'].isEmpty
+                                  ? 'Not set'
+                                  : _user['street'],
+                            ),
+                            const Divider(height: 1, color: SreaColors.divider),
+                            _ReadOnlyField(
+                              label: 'Valid ID Type',
+                              value: _user['validIdType'].isEmpty
+                                  ? 'Not set'
+                                  : _user['validIdType'],
+                            ),
+                            const Divider(height: 1, color: SreaColors.divider),
+                            _ReadOnlyField(
+                              label: 'ID Photo',
+                              value: _user['validIdPhoto'] != null
+                                  ? 'Uploaded'
+                                  : 'Not uploaded',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    if (!_isEditing)
+                      SreaButton.outline(
+                        label: 'Change Password',
+                        onPressed: () => _showChangePasswordDialog(),
+                        fullWidth: true,
+                        icon: Icons.lock_outline_rounded,
+                      ),
+                    const SizedBox(height: 12),
+                    if (!_isEditing)
+                      SreaButton.report(
+                        label: 'Logout',
+                        onPressed: _logout,
+                        fullWidth: true,
+                        icon: Icons.logout_rounded,
+                      ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
-
-              if (isResident) ...[
-                const SizedBox(height: 20),
-                _SectionHeader(title: 'Address'),
-                const SizedBox(height: 12),
-                SreaCard(
-                  child: Column(
-                    children: [
-                      _ReadOnlyField(label: 'Province', value: 'Bulacan'),
-                      const Divider(height: 1, color: SreaColors.divider),
-                      _ReadOnlyField(
-                        label: 'Municipality',
-                        value: 'San Rafael',
-                      ),
-                      const Divider(height: 1, color: SreaColors.divider),
-                      if (_user['isVerified']) ...[
-                        _ReadOnlyField(
-                          label: 'Barangay',
-                          value: _selectedBarangay ?? '',
-                        ),
-                        const Divider(height: 1, color: SreaColors.divider),
-                        _ReadOnlyField(
-                          label: 'Street / House No.',
-                          value: _streetController.text,
-                        ),
-                      ] else ...[
-                        _ProfileField(
-                          label: 'Barangay',
-                          value: _selectedBarangay ?? '',
-                          isEditing: _isEditing,
-                          onEdit: (v) => setState(() => _selectedBarangay = v),
-                          child: SreaDropdown<String>(
-                            hint: 'Select Barangay',
-                            value: _selectedBarangay,
-                            items: _barangayOptions,
-                            onChanged: (v) =>
-                                setState(() => _selectedBarangay = v),
-                            required: true,
-                          ),
-                        ),
-                        const Divider(height: 1, color: SreaColors.divider),
-                        _ProfileField(
-                          label: 'Street / House No.',
-                          value: _streetController.text,
-                          isEditing: _isEditing,
-                          onEdit: (v) => _streetController.text = v,
-                          child: SreaTextField(
-                            hint: 'Street address',
-                            controller: _streetController,
-                            required: true,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-                _SectionHeader(title: 'Verification'),
-                const SizedBox(height: 12),
-                SreaCard(
-                  child: Column(
-                    children: [
-                      if (_user['isVerified']) ...[
-                        _ReadOnlyField(
-                          label: 'Valid ID Type',
-                          value: _selectedValidIdType ?? '',
-                        ),
-                        const Divider(height: 1, color: SreaColors.divider),
-                        _ReadOnlyField(
-                          label: 'ID Photo',
-                          value: _idImage != null
-                              ? 'Image uploaded'
-                              : (_user['validIdPhoto'] ?? 'Not uploaded'),
-                        ),
-                      ] else ...[
-                        _ProfileField(
-                          label: 'Valid ID Type',
-                          value: _selectedValidIdType ?? '',
-                          isEditing: _isEditing,
-                          onEdit: (v) =>
-                              setState(() => _selectedValidIdType = v),
-                          child: SreaDropdown<String>(
-                            hint: 'Select ID Type',
-                            value: _selectedValidIdType,
-                            items: _validIdOptions,
-                            onChanged: (v) =>
-                                setState(() => _selectedValidIdType = v),
-                            required: true,
-                          ),
-                        ),
-                        const Divider(height: 1, color: SreaColors.divider),
-                        _ProfileField(
-                          label: 'ID Photo',
-                          value: _idImage != null
-                              ? 'Image uploaded'
-                              : (_user['validIdPhoto'] ?? 'Not uploaded'),
-                          isEditing: _isEditing,
-                          onEdit: (_) => _pickIdImage(),
-                          child: SreaImageUpload(
-                            selectedImage: _idImage,
-                            onTap: _pickIdImage,
-                            onRemove: () => setState(() => _idImage = null),
-                            hint: 'Tap to upload ID',
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 20),
-
-              // Change Password button
-              if (!_isEditing)
-                SreaButton.outline(
-                  label: 'Change Password',
-                  onPressed: () => _showChangePasswordDialog(),
-                  fullWidth: true,
-                  icon: Icons.lock_outline_rounded,
-                ),
-
-              const SizedBox(height: 12),
-
-              // Logout button (now works)
-              if (!_isEditing)
-                SreaButton.report(
-                  label: 'Logout',
-                  onPressed: _logout,
-                  fullWidth: true,
-                  icon: Icons.logout_rounded,
-                ),
-
-              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -696,7 +521,190 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// Helper: Section header with blue bar
+// ─── Blue header ───────────────────────────────────────────
+class _ProfileHeader extends StatelessWidget {
+  final String userName;
+  final String email;
+  final bool isVerified;
+  final File? profileImage;
+  final bool isUploading;
+  final VoidCallback onImageTap;
+
+  const _ProfileHeader({
+    required this.userName,
+    required this.email,
+    required this.isVerified,
+    required this.profileImage,
+    required this.isUploading,
+    required this.onImageTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [SreaColors.primaryDark, SreaColors.primary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          GestureDetector(
+            onTap: onImageTap,
+            child: Stack(
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: SreaColors.surface,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 2,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child: profileImage != null
+                        ? Image.file(
+                            profileImage!,
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                          )
+                        : const Icon(
+                            Icons.person_outline_rounded,
+                            size: 44,
+                            color: SreaColors.primary,
+                          ),
+                  ),
+                ),
+                if (isUploading)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: SreaColors.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(
+                      Icons.camera_alt,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            userName,
+            style: SreaText.titleLarge(context).copyWith(
+              color: SreaColors.textOnPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            email,
+            style: SreaText.bodySmall(
+              context,
+            ).copyWith(color: SreaColors.bottomNavInactive),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          if (isVerified)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: SreaRadius.pill,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.verified_rounded,
+                    size: 14,
+                    color: SreaColors.primary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Verified Account',
+                    style: SreaText.label(context).copyWith(
+                      color: SreaColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: SreaRadius.pill,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.pending_outlined,
+                    size: 14,
+                    color: SreaColors.textOnPrimary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Pending Verification',
+                    style: SreaText.label(context).copyWith(
+                      color: SreaColors.textOnPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Helper widgets ─────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String title;
   const _SectionHeader({required this.title});
@@ -725,7 +733,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// Helper: Display field in read or edit mode
 class _ProfileField extends StatelessWidget {
   final String label;
   final String value;
@@ -774,7 +781,6 @@ class _ProfileField extends StatelessWidget {
   }
 }
 
-// Helper: Read-only field
 class _ReadOnlyField extends StatelessWidget {
   final String label;
   final String value;

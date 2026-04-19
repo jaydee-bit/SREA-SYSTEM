@@ -1,12 +1,10 @@
 // File: register_screen.dart
 // Path: mobile_user_app/lib/screens/auth/register_screen.dart
 
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:srea_shared/srea_shared.dart';
-import 'package:image_picker/image_picker.dart';
-import 'pending_verification_screen.dart';
+import '../home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -19,163 +17,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-  String? _residencyStatus;
+  String? _residencyStatus; // 'resident' or 'non_resident'
   bool get _isResident => _residencyStatus == 'resident';
 
   final _firstNameController = TextEditingController();
-  final _middleNameController = TextEditingController();
+  final _middleNameController = TextEditingController(); // restored
   final _lastNameController = TextEditingController();
-  String? _gender;
-  final _birthDateController = TextEditingController();
   final _emailController = TextEditingController();
-  final _contactController = TextEditingController();
-
-  String? _barangay;
-  final _streetController = TextEditingController();
-
-  String? _validIdType;
-  File? _idImage;
-
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-
-  final List<String> _genderOptions = ['Male', 'Female', 'Prefer not to say'];
-  final List<String> _barangayOptions = [
-    'Banca-Banca',
-    'BMA – Balagtas',
-    'Caingin',
-    'Capihan',
-    'Coral na Bato',
-    'Cruz na Daan',
-    'Dagat-Dagatan',
-    'Diliman I',
-    'Diliman II',
-    'Libis',
-    'Lico',
-    'Maasim',
-    'Mabalas-Balas',
-    'Maguinao',
-    'Maronquillo',
-    'Paco',
-    'Pansumaloc',
-    'Pantubig',
-    'Pasong Bangkal',
-    'Pasong Callos',
-    'Pasong Intsik',
-    'Pinacpinacan',
-    'Poblacion',
-    'Pulo',
-    'Pulong Bayabas',
-    'Salapungan',
-    'Sampaloc',
-    'San Agustin',
-    'San Roque',
-    'Sapang Pahalang',
-    'Talacsan',
-    'Tambubong',
-    'Tukod',
-    'Ulingao',
-  ];
-  final List<String> _validIdOptions = [
-    'PhilSys / National ID',
-    'Driver\'s License',
-    'Passport',
-    'Voter\'s ID',
-    'Postal ID',
-    'SSS ID',
-    'GSIS ID',
-    'Barangay ID',
-  ];
 
   @override
   void dispose() {
     _firstNameController.dispose();
     _middleNameController.dispose();
     _lastNameController.dispose();
-    _birthDateController.dispose();
     _emailController.dispose();
-    _contactController.dispose();
-    _streetController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickBirthDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime(2000),
-      firstDate: DateTime(1920),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: SreaColors.primary,
-              onPrimary: SreaColors.textOnPrimary,
-              surface: SreaColors.surface,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      _birthDateController.text =
-          '${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}/${picked.year}';
-    }
-  }
-
-  Future<void> _pickIdImage() async {
-    final picker = ImagePicker();
-
-    // Show options dialog (Gallery or Camera)
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(borderRadius: SreaRadius.bottomSheet),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(
-                Icons.photo_library,
-                color: SreaColors.primary,
-              ),
-              title: const Text('Choose from Gallery'),
-              onTap: () async {
-                Navigator.pop(context);
-                final picked = await picker.pickImage(
-                  source: ImageSource.gallery,
-                  maxWidth: 1024,
-                  maxHeight: 1024,
-                  imageQuality: 85,
-                );
-                if (picked != null) {
-                  setState(() => _idImage = File(picked.path));
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: SreaColors.primary),
-              title: const Text('Take a Photo'),
-              onTap: () async {
-                Navigator.pop(context);
-                final picked = await picker.pickImage(
-                  source: ImageSource.camera,
-                  maxWidth: 1024,
-                  maxHeight: 1024,
-                  imageQuality: 85,
-                );
-                if (picked != null) {
-                  setState(() => _idImage = File(picked.path));
-                }
-              },
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _handleRegister() async {
@@ -183,10 +45,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_residencyStatus == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Please select your residency status',
-            style: SreaText.bodySmall(context).copyWith(color: Colors.white),
-          ),
+          content: Text('Please select your residency status',
+              style: SreaText.bodySmall(context).copyWith(color: Colors.white)),
           backgroundColor: SreaColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: SreaRadius.input),
@@ -201,11 +61,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = false);
 
-    // After successful registration, navigate to pending screen
     if (mounted) {
+      // Both resident and non-resident go directly to home screen
+      // Resident status: unverified (no address/ID yet)
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const PendingVerificationScreen()),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     }
   }
@@ -228,96 +89,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     children: [
                       _SectionHeader(title: 'Personal Information'),
                       SizedBox(height: SreaSpacing.sectionHeaderGap(context)),
+
                       SreaTextField(
                         label: 'First Name',
                         hint: 'Enter first name',
                         controller: _firstNameController,
                         required: true,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Required' : null,
+                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                       ),
                       SizedBox(height: SreaSpacing.inputGap(context)),
+
                       SreaTextField(
                         label: 'Middle Name',
                         hint: 'Enter middle name (optional)',
                         controller: _middleNameController,
                       ),
                       SizedBox(height: SreaSpacing.inputGap(context)),
+
                       SreaTextField(
                         label: 'Last Name',
                         hint: 'Enter last name',
                         controller: _lastNameController,
                         required: true,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Required' : null,
+                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                       ),
                       SizedBox(height: SreaSpacing.inputGap(context)),
-                      SreaDropdown<String>(
-                        label: 'Gender',
-                        hint: 'Choose your Gender',
-                        value: _gender,
-                        items: _genderOptions,
-                        required: true,
-                        onChanged: (v) => setState(() => _gender = v),
-                        validator: (v) =>
-                            v == null ? 'Please select gender' : null,
-                      ),
-                      SizedBox(height: SreaSpacing.inputGap(context)),
-                      SreaInputLabel(label: 'Birth Date', required: true),
-                      SizedBox(height: SreaSpacing.inputLabelGap(context)),
-                      TextFormField(
-                        controller: _birthDateController,
-                        readOnly: true,
-                        onTap: _pickBirthDate,
-                        style: SreaText.bodySmall(
-                          context,
-                        ).copyWith(color: SreaColors.textPrimary),
-                        decoration: InputDecoration(
-                          hintText: 'MM/DD/YYYY',
-                          hintStyle: SreaText.bodySmall(
-                            context,
-                          ).copyWith(color: SreaColors.textHint),
-                          prefixIcon: const Icon(
-                            Icons.calendar_today_outlined,
-                            size: 18,
-                            color: SreaColors.textHint,
-                          ),
-                          contentPadding: SreaSpacing.inputPadding(context),
-                          filled: true,
-                          fillColor: SreaColors.surface,
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: SreaRadius.input,
-                            borderSide: const BorderSide(
-                              color: SreaColors.border,
-                              width: 1,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: SreaRadius.input,
-                            borderSide: const BorderSide(
-                              color: SreaColors.borderFocused,
-                              width: 1.5,
-                            ),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderRadius: SreaRadius.input,
-                            borderSide: const BorderSide(
-                              color: SreaColors.error,
-                              width: 1,
-                            ),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderRadius: SreaRadius.input,
-                            borderSide: const BorderSide(
-                              color: SreaColors.error,
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Required' : null,
-                      ),
-                      SizedBox(height: SreaSpacing.inputGap(context)),
+
                       SreaTextField(
                         label: 'Email',
                         hint: 'example@gmail.com',
@@ -327,16 +124,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         required: true,
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Required';
-                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v))
-                            return 'Enter a valid email';
+                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) return 'Enter a valid email';
                           return null;
                         },
                       ),
                       SizedBox(height: SreaSpacing.inputGap(context)),
+
                       SreaTextField(
                         label: 'Contact Number',
                         hint: '09XXXXXXXXX',
-                        controller: _contactController,
+                        controller: _phoneController,
                         keyboardType: TextInputType.phone,
                         prefixIcon: Icons.phone_outlined,
                         required: true,
@@ -346,12 +143,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ],
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Required';
-                          if (v.length < 11)
-                            return 'Enter a valid 11-digit number';
+                          if (v.length < 11) return 'Enter a valid 11-digit number';
                           return null;
                         },
                       ),
                       SizedBox(height: SreaSpacing.inputGap(context)),
+
                       _SectionHeader(title: 'Residency Status'),
                       SizedBox(height: SreaSpacing.sectionHeaderGap(context)),
                       SreaRadioGroup<String>(
@@ -370,66 +167,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ],
                       ),
-                      if (_isResident) ...[
-                        SizedBox(height: SreaSpacing.sectionGap(context)),
-                        _SectionHeader(title: 'Address'),
-                        SizedBox(height: SreaSpacing.sectionHeaderGap(context)),
-                        SreaTextField(
-                          label: 'Province',
-                          hint: 'Bulacan',
-                          enabled: false,
+
+                      if (_isResident)
+                        Container(
+                          margin: const EdgeInsets.only(top: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: SreaColors.primaryLight,
+                            borderRadius: SreaRadius.input,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, size: 18, color: SreaColors.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'You can complete your address and ID later in your profile.',
+                                  style: SreaText.label(context).copyWith(color: SreaColors.primary),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        SizedBox(height: SreaSpacing.inputGap(context)),
-                        SreaTextField(
-                          label: 'Municipality',
-                          hint: 'San Rafael',
-                          enabled: false,
-                        ),
-                        SizedBox(height: SreaSpacing.inputGap(context)),
-                        SreaDropdown<String>(
-                          label: 'Barangay',
-                          hint: 'Choose your Barangay',
-                          value: _barangay,
-                          items: _barangayOptions,
-                          required: true,
-                          onChanged: (v) => setState(() => _barangay = v),
-                          validator: (v) =>
-                              v == null ? 'Please select your barangay' : null,
-                        ),
-                        SizedBox(height: SreaSpacing.inputGap(context)),
-                        SreaTextField(
-                          label: 'Street / House No.',
-                          hint: 'Enter your address',
-                          controller: _streetController,
-                          required: true,
-                          validator: (v) =>
-                              v == null || v.isEmpty ? 'Required' : null,
-                        ),
-                        SizedBox(height: SreaSpacing.sectionGap(context)),
-                        _SectionHeader(title: 'Verification'),
-                        SizedBox(height: SreaSpacing.sectionHeaderGap(context)),
-                        SreaDropdown<String>(
-                          label: 'Valid ID',
-                          hint: 'Choose your ID type',
-                          value: _validIdType,
-                          items: _validIdOptions,
-                          required: true,
-                          onChanged: (v) => setState(() => _validIdType = v),
-                          validator: (v) =>
-                              v == null ? 'Please select an ID type' : null,
-                        ),
-                        SizedBox(height: SreaSpacing.inputGap(context)),
-                        SreaImageUpload(
-                          label: 'Upload ID Photo',
-                          hint: 'Tap to upload your ID',
-                          selectedImage: _idImage,
-                          onTap: _pickIdImage,
-                          onRemove: () => setState(() => _idImage = null),
-                        ),
-                      ],
+
                       SizedBox(height: SreaSpacing.sectionGap(context)),
                       _SectionHeader(title: 'Password'),
                       SizedBox(height: SreaSpacing.sectionHeaderGap(context)),
+
                       SreaPasswordField(
                         label: 'Password',
                         hint: 'Enter password',
@@ -442,6 +206,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         },
                       ),
                       SizedBox(height: SreaSpacing.inputGap(context)),
+
                       SreaPasswordField(
                         label: 'Confirm Password',
                         hint: 'Re-enter password',
@@ -449,11 +214,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         required: true,
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Required';
-                          if (v != _passwordController.text)
-                            return 'Passwords do not match';
+                          if (v != _passwordController.text) return 'Passwords do not match';
                           return null;
                         },
                       ),
+
                       const SizedBox(height: 36),
                       SreaButton(
                         label: 'Register',
@@ -469,9 +234,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: RichText(
                             text: TextSpan(
                               text: 'Already have an account?  ',
-                              style: SreaText.bodySmall(
-                                context,
-                              ).copyWith(color: SreaColors.textSecondary),
+                              style: SreaText.bodySmall(context).copyWith(color: SreaColors.textSecondary),
                               children: [
                                 TextSpan(
                                   text: 'Login',
@@ -521,11 +284,7 @@ class _CompactHeader extends StatelessWidget {
         children: [
           IconButton(
             onPressed: onBack,
-            icon: const Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: SreaColors.textOnPrimary,
-              size: 20,
-            ),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: SreaColors.textOnPrimary, size: 20),
           ),
           const SizedBox(width: 4),
           Column(
@@ -533,15 +292,14 @@ class _CompactHeader extends StatelessWidget {
             children: [
               Text(
                 'Create Account',
-                style: SreaText.headlineSmall(
-                  context,
-                ).copyWith(color: SreaColors.textOnPrimary, fontSize: 20),
+                style: SreaText.headlineSmall(context).copyWith(
+                  color: SreaColors.textOnPrimary,
+                  fontSize: 20,
+                ),
               ),
               Text(
                 'Fill in the details below to register',
-                style: SreaText.label(
-                  context,
-                ).copyWith(color: SreaColors.bottomNavInactive),
+                style: SreaText.label(context).copyWith(color: SreaColors.bottomNavInactive),
               ),
             ],
           ),
@@ -559,23 +317,9 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 4,
-          height: 18,
-          decoration: BoxDecoration(
-            color: SreaColors.primary,
-            borderRadius: SreaRadius.pill,
-          ),
-        ),
+        Container(width: 4, height: 18, decoration: BoxDecoration(color: SreaColors.primary, borderRadius: SreaRadius.pill)),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: SreaText.titleLarge(context).copyWith(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: SreaColors.textPrimary,
-          ),
-        ),
+        Text(title, style: SreaText.titleLarge(context).copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
       ],
     );
   }
