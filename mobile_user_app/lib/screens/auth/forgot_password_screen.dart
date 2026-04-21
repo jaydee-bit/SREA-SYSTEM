@@ -484,7 +484,7 @@ class _EmailTips extends StatelessWidget {
           _TipRow(text: 'Check your spam or junk folder'),
           _TipRow(text: 'Make sure the email address is correct'),
           _TipRow(text: 'Wait a few minutes before retrying'),
-          _TipRow(text: 'Contact DRRMO if the issue persists'),
+          _TipRow(text: 'Contact MDRRMO if the issue persists'),
         ],
       ),
     );

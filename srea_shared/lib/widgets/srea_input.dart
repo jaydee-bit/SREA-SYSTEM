@@ -258,7 +258,7 @@ class SreaDropdown<T> extends StatelessWidget {
           const SizedBox(height: 6),
         ],
         DropdownButtonFormField<T>(
-          value: effectiveValue,
+          initialValue: effectiveValue,
           validator: validator,
           onChanged: onChanged,
           isExpanded: true,

@@ -432,7 +432,7 @@ class _ContactFooter extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Municipality of San Rafael, Bulacan\nDRRMO Office',
+            'Municipality of San Rafael, Bulacan\nMDRRMO Office',
             style: SreaText.label(context).copyWith(
               color: SreaColors.bottomNavInactive,
               height: 1.6,
@@ -443,7 +443,7 @@ class _ContactFooter extends StatelessWidget {
           Container(height: 1, color: Colors.white.withValues(alpha: 0.15)),
           const SizedBox(height: 12),
           Text(
-            '© 2025 San Rafael DRRMO. All rights reserved.',
+            '© 2025 San Rafael MDRRMO. All rights reserved.',
             style: SreaText.label(context).copyWith(
               color: SreaColors.bottomNavInactive,
               fontSize: 11,

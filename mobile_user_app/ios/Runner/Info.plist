@@ -7,6 +7,12 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SREA needs access to your photo library to upload your valid ID</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<key>NSCameraUsageDescription</key>
+	<string>SREA needs camera access to take photos of incidents.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SREA needs access to your photo library to upload incident photos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SREA needs your location to accurately report the incident location.</string>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>

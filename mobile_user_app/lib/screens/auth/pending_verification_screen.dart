@@ -59,7 +59,7 @@ class PendingVerificationScreen extends StatelessWidget {
                 // Description
                 Text(
                   'Thank you for registering with SREA.\n\n'
-                  'Your account is currently under review by the San Rafael DRRMO. '
+                  'Your account is currently under review by the San Rafael MDRRMO. '
                   'You will receive an email notification once your account is verified.\n\n'
                   'This usually takes 24–48 hours.',
                   style: SreaText.bodySmall(
@@ -111,7 +111,7 @@ class PendingVerificationScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Contact DRRMO if you have questions',
+                              'Contact MDRRMO if you have questions',
                               style: SreaText.bodySmall(context).copyWith(
                                 fontWeight: FontWeight.w600,
                                 color: SreaColors.primary,
@@ -148,10 +148,10 @@ class PendingVerificationScreen extends StatelessWidget {
                 TextButton(
                   onPressed: () {
                     // TODO: open email or phone dialer
-                    // e.g., launchUrl(Uri.parse('mailto:drrmo@sanrafael.gov.ph'));
+                    // e.g., launchUrl(Uri.parse('mailto:MDRRMO@sanrafael.gov.ph'));
                   },
                   child: Text(
-                    'Contact DRRMO Support',
+                    'Contact MDRRMO Support',
                     style: SreaText.label(context).copyWith(
                       color: SreaColors.textSecondary,
                       decoration: TextDecoration.underline,

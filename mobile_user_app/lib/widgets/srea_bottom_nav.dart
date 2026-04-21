@@ -142,7 +142,7 @@ class SreaEmergencyFAB extends StatelessWidget {
           style: SreaText.titleLarge(context).copyWith(color: SreaColors.textPrimary),
         ),
         content: Text(
-          'This will place an emergency call to San Rafael DRRMO. Continue?',
+          'This will place an emergency call to San Rafael MDRRMO. Continue?',
           style: SreaText.bodySmall(context).copyWith(color: SreaColors.textSecondary),
         ),
         actions: [

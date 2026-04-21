@@ -490,7 +490,7 @@ class _SuccessState extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'If you did not make this change, contact your barangay admin or DRRMO immediately.',
+                  'If you did not make this change, contact your barangay admin or MDRRMO immediately.',
                   style: SreaText.label(context).copyWith(
                     color: SreaColors.textSecondary,
                     height: 1.5,

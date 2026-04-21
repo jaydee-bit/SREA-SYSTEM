@@ -99,8 +99,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   maxHeight: 1024,
                   imageQuality: 85,
                 );
-                if (picked != null)
+                if (picked != null) {
                   setState(() => _idImage = File(picked.path));
+                }
               },
             ),
             ListTile(
@@ -114,8 +115,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   maxHeight: 1024,
                   imageQuality: 85,
                 );
-                if (picked != null)
+                if (picked != null) {
                   setState(() => _idImage = File(picked.path));
+                }
               },
             ),
           ],

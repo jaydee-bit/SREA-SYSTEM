@@ -7,8 +7,13 @@ import '../widgets/srea_sidebar.dart';
 import '../widgets/srea_bottom_nav.dart';
 import 'auth/login_screen.dart';
 import 'complete_profile_screen.dart';
-import 'incident_report_screen.dart';
+import 'incident_reports_screen.dart';
 import 'profile_screen.dart';
+import 'announcements_screen.dart';
+import 'traffic_advisories_screen.dart';
+import 'privacy_policy_screen.dart';
+import 'notifications_screen.dart';
+import '../services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,17 +26,19 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   // TOGGLE THESE FLAGS TO TEST DIFFERENT STATES
-  final bool _isResident = true; // true = resident, false = non-resident
-  final bool _hasAddressAndId = false; // false = unverified, true = pending
-  final bool _isVerified = false; // false = not admin-verified, true = verified
+  final bool _isResident = true;
+  final bool _hasAddressAndId = false;
+  final bool _isVerified = false;
 
-  // Mock user data – replace with API
   final String _userName = 'Leon S. Kennedy';
   final String _email = 'leon@gmail.com';
-  final String _barangay = 'Brgy. Poblacion';
+  final String _barangay = 'Poblacion';
+  String? _profileImageUrl;
 
   final bool _hasActiveAlert = false;
   final String _activeAlertLevel = 'none';
+
+  final ValueNotifier<int> _unreadCountNotifier = ValueNotifier(0);
 
   final List<Map<String, dynamic>> _recentUpdates = [
     {
@@ -74,8 +81,29 @@ class _HomeScreenState extends State<HomeScreen> {
     },
     {'text': 'First aid kit, flashlight, extra batteries, and whistle.'},
     {'text': 'Nearest evacuation center location saved on your phone.'},
-    {'text': 'Emergency contact numbers of family, barangay, and NDRRMC.'},
+    {'text': 'Emergency contact numbers of family, barangay, and MDRRMC.'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Schedule after the first frame to avoid calling setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateUnreadCount();
+      NotificationService().addListener(_updateUnreadCount);
+    });
+  }
+
+  @override
+  void dispose() {
+    NotificationService().removeListener(_updateUnreadCount);
+    _unreadCountNotifier.dispose();
+    super.dispose();
+  }
+
+  void _updateUnreadCount() {
+    _unreadCountNotifier.value = NotificationService().unreadCount;
+  }
 
   void _onBottomNavTap(int index) {
     setState(() => _currentIndex = index);
@@ -83,28 +111,33 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         break;
       case 1:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Announcements coming soon'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AnnouncementsScreen()),
+        ).then((_) => setState(() => _currentIndex = 0));
         break;
       case 2:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Traffic advisories coming soon'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const TrafficAdvisoriesScreen()),
+        ).then((_) => setState(() => _currentIndex = 0));
         break;
       case 3:
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+          MaterialPageRoute(
+            builder: (_) =>
+                ProfileScreen(onProfileImageUpdated: _updateProfileImage),
+          ),
         ).then((_) => setState(() => _currentIndex = 0));
         break;
     }
+  }
+
+  void _updateProfileImage(String? imagePath) {
+    setState(() {
+      _profileImageUrl = imagePath;
+    });
   }
 
   void _onSidebarNavigate(String route) {
@@ -112,122 +145,41 @@ class _HomeScreenState extends State<HomeScreen> {
       case '/profile':
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+          MaterialPageRoute(
+            builder: (_) =>
+                ProfileScreen(onProfileImageUpdated: _updateProfileImage),
+          ),
         ).then((_) => setState(() => _currentIndex = 0));
         break;
       case '/announcements':
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Announcements coming soon'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AnnouncementsScreen()),
+        ).then((_) => setState(() => _currentIndex = 0));
         break;
       case '/traffic':
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Traffic advisories coming soon'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const TrafficAdvisoriesScreen()),
+        ).then((_) => setState(() => _currentIndex = 0));
         break;
       case '/incidents':
-        _navigateToIncidentReport();
-        break;
-      case '/call-history':
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Emergency call history coming soon'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const IncidentReportsScreen()),
+        ).then((_) => setState(() => _currentIndex = 0));
         break;
       case '/privacy':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+        );
         break;
       case '/about':
         break;
       default:
         debugPrint('Navigate to $route');
     }
-  }
-
-  void _navigateToIncidentReport() {
-    if (!_isResident) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Only San Rafael residents can report incidents.'),
-          backgroundColor: SreaColors.error,
-        ),
-      );
-      return;
-    }
-    if (!_hasAddressAndId) {
-      _showLockDialog(
-        title: 'Complete Your Profile',
-        message:
-            'You need to provide your address and valid ID before you can report incidents.',
-        buttonText: 'Complete Now',
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const CompleteProfileScreen()),
-        ),
-      );
-      return;
-    }
-    if (!_isVerified) {
-      _showLockDialog(
-        title: 'Verification Pending',
-        message:
-            'Your account is under review. You will be able to report incidents once verified by the admin.',
-        buttonText: 'OK',
-      );
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const IncidentReportScreen()),
-    );
-  }
-
-  void _showLockDialog({
-    required String title,
-    required String message,
-    required String buttonText,
-    VoidCallback? onPressed,
-  }) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: SreaRadius.modal),
-        title: Text(
-          title,
-          style: SreaText.titleLarge(
-            context,
-          ).copyWith(color: SreaColors.textPrimary),
-        ),
-        content: Text(
-          message,
-          style: SreaText.bodySmall(
-            context,
-          ).copyWith(color: SreaColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              onPressed?.call();
-            },
-            child: Text(
-              buttonText,
-              style: SreaText.bodySmall(context).copyWith(
-                color: SreaColors.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   void _onLogout() {
@@ -249,12 +201,15 @@ class _HomeScreenState extends State<HomeScreen> {
         activeRoute: '/home',
         onNavigate: _onSidebarNavigate,
         onLogout: _onLogout,
-        profileImageUrl: null,
+        profileImageUrl: _profileImageUrl,
       ),
       body: SafeArea(
         child: Column(
           children: [
-            _SreaAppBar(userName: _userName.split(' ').first),
+            _SreaAppBar(
+              userName: _userName.split(' ').first,
+              unreadCountNotifier: _unreadCountNotifier,
+            ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
@@ -266,7 +221,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         : const SreaAllClearBanner(),
                     const SizedBox(height: 20),
 
-                    // Show appropriate banner for residents
                     if (_isResident && !_hasAddressAndId) ...[
                       const _CompleteProfileBanner(),
                       const SizedBox(height: 16),
@@ -285,7 +239,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         _SectionLabel(title: 'Recent Updates'),
                         GestureDetector(
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const NotificationsScreen(),
+                              ),
+                            );
+                          },
                           child: Text(
                             'See all',
                             style: SreaText.label(context).copyWith(
@@ -344,10 +305,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ─── AppBar ─────────────────────────────────────────────────
+// ─── AppBar with notification badge ───────────────────────────────────
 class _SreaAppBar extends StatelessWidget {
   final String userName;
-  const _SreaAppBar({required this.userName});
+  final ValueNotifier<int> unreadCountNotifier;
+
+  const _SreaAppBar({
+    required this.userName,
+    required this.unreadCountNotifier,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -381,29 +347,53 @@ class _SreaAppBar extends StatelessWidget {
               ),
             ),
           ),
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.notifications_outlined,
-                  color: SreaColors.textOnPrimary,
-                  size: 24,
-                ),
-                onPressed: () {},
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: SreaColors.buttonReport,
-                    shape: BoxShape.circle,
+          ValueListenableBuilder<int>(
+            valueListenable: unreadCountNotifier,
+            builder: (context, count, child) {
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.notifications_outlined,
+                      color: SreaColors.textOnPrimary,
+                      size: 24,
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
+                        ),
+                      );
+                    },
                   ),
-                ),
-              ),
-            ],
+                  if (count > 0)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: SreaColors.buttonReport,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 14,
+                          minHeight: 14,
+                        ),
+                        child: Text(
+                          count > 9 ? '9+' : '$count',
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: Colors.white,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -411,7 +401,7 @@ class _SreaAppBar extends StatelessWidget {
   }
 }
 
-// ─── Active alert banner ────────────────────────────────────
+// ─── Active alert banner ─────────────────────────────────────────────
 class _ActiveAlertBanner extends StatelessWidget {
   final String level;
   const _ActiveAlertBanner({required this.level});
@@ -490,7 +480,7 @@ class _ActiveAlertBanner extends StatelessWidget {
   }
 }
 
-// ─── Section label ──────────────────────────────────────────
+// ─── Section label ───────────────────────────────────────────────────
 class _SectionLabel extends StatelessWidget {
   final String title;
   const _SectionLabel({required this.title});
@@ -508,7 +498,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ─── Empty alerts state ─────────────────────────────────────
+// ─── Empty alerts state ─────────────────────────────────────────────
 class _EmptyAlerts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -541,7 +531,7 @@ class _EmptyAlerts extends StatelessWidget {
   }
 }
 
-// ─── Preparedness banner ────────────────────────────────────
+// ─── Preparedness banner ────────────────────────────────────────────
 class _PreparednessBanner extends StatelessWidget {
   const _PreparednessBanner();
 
@@ -591,7 +581,7 @@ class _PreparednessBanner extends StatelessWidget {
           Text(
             '• Always have your go‑bag ready\n'
             '• Know your barangay evacuation center\n'
-            '• Save emergency contacts: DRRMO, Barangay, NDRRMC\n'
+            '• Save emergency contacts: MDRRMO, Barangay, NDRRMC\n'
             '• Monitor official weather updates from PAGASA\n'
             '• Stay tuned to SREA alerts for real‑time information',
             style: SreaText.bodySmall(
@@ -630,7 +620,7 @@ class _PreparednessBanner extends StatelessWidget {
   }
 }
 
-// ─── Complete Profile Banner (Blue) ─────────────────────────
+// ─── Complete Profile Banner (Blue) ─────────────────────────────────
 class _CompleteProfileBanner extends StatelessWidget {
   const _CompleteProfileBanner();
 
@@ -652,14 +642,14 @@ class _CompleteProfileBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Complete your profile',
+                  'Get verified',
                   style: SreaText.bodySmall(context).copyWith(
                     color: SreaColors.primary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
-                  'Add your address and valid ID to start reporting incidents.',
+                  'Verified reports are prioritized by MDRRMO. Complete your profile to increase credibility.',
                   style: SreaText.label(
                     context,
                   ).copyWith(color: SreaColors.primary),
@@ -677,7 +667,7 @@ class _CompleteProfileBanner extends StatelessWidget {
               );
             },
             child: Text(
-              'Complete Now',
+              'Verify now',
               style: SreaText.label(context).copyWith(
                 color: SreaColors.primary,
                 fontWeight: FontWeight.w700,
@@ -690,7 +680,7 @@ class _CompleteProfileBanner extends StatelessWidget {
   }
 }
 
-// ─── Pending Verification Banner (Yellow) ───────────────────
+// ─── Pending Verification Banner (Yellow) ───────────────────────────
 class _PendingVerificationBanner extends StatelessWidget {
   const _PendingVerificationBanner();
 
@@ -737,7 +727,7 @@ class _PendingVerificationBanner extends StatelessWidget {
   }
 }
 
-// ─── Go-Bag card ────────────────────────────────────────────
+// ─── Go-Bag card ────────────────────────────────────────────────────
 class _GoBagCard extends StatelessWidget {
   final List<Map<String, String>> items;
   const _GoBagCard({required this.items});

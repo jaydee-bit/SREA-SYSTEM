@@ -9,7 +9,9 @@ import 'package:image_picker/image_picker.dart';
 import 'auth/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final Function(String?)? onProfileImageUpdated;
+
+  const ProfileScreen({super.key, this.onProfileImageUpdated});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -17,7 +19,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   // Mock user data – replace with API
-  // Change these values to test different states
   final Map<String, dynamic> _user = {
     'firstName': 'Leon',
     'middleName': 'Scott',
@@ -26,12 +27,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'phone': '09123456789',
     'gender': 'Male',
     'birthDate': '1990-05-15',
-    'barangay': '', // ← empty = not provided
-    'street': '', // ← empty = not provided
-    'isVerified': false, // ← false = not admin‑verified
+    'barangay': '',
+    'street': '',
+    'isVerified': false,
     'role': 'resident',
-    'validIdType': '', // ← empty = not provided
-    'validIdPhoto': null, // ← null = no ID uploaded
+    'validIdType': '',
+    'validIdPhoto': null,
     'profileImage': null,
     'isProfileComplete': false,
   };
@@ -120,6 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (picked != null) {
         setState(() => _profileImage = File(picked.path));
         _user['profileImage'] = picked.path;
+        widget.onProfileImageUpdated?.call(picked.path);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -154,7 +156,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _saveChanges() async {
     setState(() => _isLoading = true);
-    // TODO: API call to update basic info (name, email, phone, gender)
     await Future.delayed(const Duration(seconds: 1));
     setState(() {
       _isLoading = false;

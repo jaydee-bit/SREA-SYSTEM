@@ -13,7 +13,7 @@ class SreaSidebar extends StatelessWidget {
   final String activeRoute;
   final void Function(String route) onNavigate;
   final VoidCallback onLogout;
-  final String? profileImageUrl; // supports network URL or local file path
+  final String? profileImageUrl;
 
   const SreaSidebar({
     super.key,
@@ -207,14 +207,6 @@ class SreaSidebar extends StatelessWidget {
                     activeIcon: Icons.report_rounded,
                     label: 'Incident Reports',
                     route: '/incidents',
-                    activeRoute: activeRoute,
-                    onTap: onNavigate,
-                  ),
-                  _SidebarItem(
-                    icon: Icons.phone_missed_outlined,
-                    activeIcon: Icons.phone_missed_rounded,
-                    label: 'Emergency Call History',
-                    route: '/call-history',
                     activeRoute: activeRoute,
                     onTap: onNavigate,
                   ),
