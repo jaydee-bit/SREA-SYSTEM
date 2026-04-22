@@ -1,13 +1,17 @@
+// File: srea_card.dart
+
 import 'package:flutter/material.dart';
 import '../theme/theme.dart';
 
-// ─────────────────────────────────────────────────────────────
-// SreaCard — Base reusable card container
-//
-// Usage:
-// SreaCard(child: Text('Hello'))
-// SreaCard(padding: SreaSpacing.cardPaddingSmall, onTap: () {}, child: ...)
-// ─────────────────────────────────────────────────────────────
+EdgeInsets _responsiveCardPadding(BuildContext context, {bool small = false}) {
+  final width = MediaQuery.of(context).size.width;
+  final horizontal = (width * 0.045).clamp(12.0, 28.0);
+  final vertical = small
+      ? (width * 0.025).clamp(8.0, 16.0)
+      : (width * 0.04).clamp(12.0, 24.0);
+  return EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical);
+}
+
 class SreaCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets? padding;
@@ -29,6 +33,7 @@ class SreaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final br = borderRadius ?? SreaRadius.card;
+    final effectivePadding = padding ?? _responsiveCardPadding(context);
 
     return Material(
       color: color ?? SreaColors.surface,
@@ -38,8 +43,10 @@ class SreaCard extends StatelessWidget {
         borderRadius: br,
         splashColor: SreaColors.primaryLight,
         highlightColor: SreaColors.primaryLight.withValues(alpha: 0.5),
+        focusColor: SreaColors.primaryLight,
+        hoverColor: SreaColors.primaryLight.withValues(alpha: 0.1),
         child: Container(
-          padding: padding ?? SreaSpacing.cardPadding,
+          padding: effectivePadding,
           decoration: BoxDecoration(
             borderRadius: br,
             boxShadow: hasShadow
@@ -59,19 +66,6 @@ class SreaCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// SreaAlertCard — Alert/incident card with badge and details
-//
-// Usage:
-// SreaAlertCard(
-//   title: 'Flooding in Brgy. Partida',
-//   location: 'Barangay Partida',
-//   time: '10 mins ago',
-//   badgeType: SreaBadgeType.critical,
-//   badgeLabel: 'Critical',
-//   onTap: () {},
-// )
-// ─────────────────────────────────────────────────────────────
 class SreaAlertCard extends StatelessWidget {
   final String title;
   final String location;
@@ -92,16 +86,19 @@ class SreaAlertCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final iconSize = (width * 0.08).clamp(24.0, 48.0);
+    final iconContainerSize = iconSize + 12;
+
     return SreaCard(
       onTap: onTap,
-      padding: SreaSpacing.cardPaddingSmall,
+      padding: _responsiveCardPadding(context, small: true),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon
           Container(
-            width: 42,
-            height: 42,
+            width: iconContainerSize,
+            height: iconContainerSize,
             decoration: BoxDecoration(
               color: SreaColors.primaryLight,
               borderRadius: SreaRadius.input,
@@ -109,11 +106,10 @@ class SreaAlertCard extends StatelessWidget {
             child: Icon(
               icon ?? Icons.warning_amber_rounded,
               color: SreaColors.primary,
-              size: 20,
+              size: iconSize * 0.6,
             ),
           ),
-          SizedBox(width: SreaSpacing.avatarGap),
-          // Content
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,40 +119,45 @@ class SreaAlertCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         title,
-                        style: SreaText.bodySmall.copyWith(
+                        style: SreaText.bodySmall(context).copyWith(
                           fontWeight: FontWeight.w600,
                           color: SreaColors.textPrimary,
+                          fontSize: (width * 0.04).clamp(13.0, 18.0),
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    SizedBox(width: SreaSpacing.xs),
+                    const SizedBox(width: 4),
                     badge,
                   ],
                 ),
-                SizedBox(height: SreaSpacing.xs),
+                const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.location_on_outlined,
-                      size: 13,
+                      size: (width * 0.035).clamp(11.0, 16.0),
                       color: SreaColors.textHint,
                     ),
                     const SizedBox(width: 3),
                     Expanded(
                       child: Text(
                         location,
-                        style: SreaText.label
-                            .copyWith(color: SreaColors.textSecondary),
+                        style: SreaText.label(context).copyWith(
+                          fontSize: (width * 0.032).clamp(10.0, 14.0),
+                          color: SreaColors.textSecondary,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Text(
                       time,
-                      style:
-                          SreaText.label.copyWith(color: SreaColors.textHint),
+                      style: SreaText.label(context).copyWith(
+                        fontSize: (width * 0.032).clamp(10.0, 14.0),
+                        color: SreaColors.textHint,
+                      ),
                     ),
                   ],
                 ),
@@ -169,18 +170,6 @@ class SreaAlertCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// SreaInfoCard — Simple labeled info card (e.g. weather, stats)
-//
-// Usage:
-// SreaInfoCard(
-//   title: 'Weather',
-//   subtitle: 'Partly Cloudy · 28°C',
-//   icon: Icons.cloud_outlined,
-//   backgroundColor: SreaColors.weatherCardBg,
-//   foregroundColor: SreaColors.weatherText,
-// )
-// ─────────────────────────────────────────────────────────────
 class SreaInfoCard extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -201,27 +190,32 @@ class SreaInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final iconSize = (width * 0.07).clamp(24.0, 42.0);
+
     return SreaCard(
       onTap: onTap,
       color: backgroundColor,
       child: Row(
         children: [
-          Icon(icon, color: foregroundColor, size: 28),
-          SizedBox(width: SreaSpacing.iconGap),
+          Icon(icon, color: foregroundColor, size: iconSize),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: SreaText.label.copyWith(
+                  style: SreaText.label(context).copyWith(
+                    fontSize: (width * 0.032).clamp(10.0, 14.0),
                     color: foregroundColor.withValues(alpha: 0.8),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: SreaText.bodySmall.copyWith(
+                  style: SreaText.bodySmall(context).copyWith(
+                    fontSize: (width * 0.04).clamp(13.0, 18.0),
                     color: foregroundColor,
                     fontWeight: FontWeight.w600,
                   ),
@@ -231,6 +225,7 @@ class SreaInfoCard extends StatelessWidget {
           ),
           Icon(
             Icons.chevron_right_rounded,
+            size: iconSize * 0.7,
             color: foregroundColor.withValues(alpha: 0.7),
           ),
         ],
@@ -239,12 +234,6 @@ class SreaInfoCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// SreaAllClearBanner — Green banner shown when no active alerts
-//
-// Usage:
-// SreaAllClearBanner()
-// ─────────────────────────────────────────────────────────────
 class SreaAllClearBanner extends StatelessWidget {
   final String message;
 
@@ -255,43 +244,50 @@ class SreaAllClearBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final iconSize = (width * 0.07).clamp(28.0, 48.0);
+
     return Container(
-      padding: SreaSpacing.cardPaddingSmall,
+      padding: _responsiveCardPadding(context, small: true),
       decoration: BoxDecoration(
         color: SreaColors.allClearBg,
         borderRadius: SreaRadius.card,
-        border: Border.all(color: SreaColors.allClearIcon.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: SreaColors.allClearIcon.withValues(alpha: 0.3),
+        ),
       ),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: iconSize,
+            height: iconSize,
             decoration: BoxDecoration(
               color: SreaColors.allClearIcon.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.check_circle_outline_rounded,
               color: SreaColors.allClearIcon,
-              size: 20,
+              size: iconSize * 0.6,
             ),
           ),
-          SizedBox(width: SreaSpacing.iconGap),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'All Clear',
-                  style: SreaText.bodySmall.copyWith(
+                  style: SreaText.bodySmall(context).copyWith(
+                    fontSize: (width * 0.04).clamp(13.0, 18.0),
                     color: SreaColors.allClearText,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   message,
-                  style: SreaText.label.copyWith(
+                  style: SreaText.label(context).copyWith(
+                    fontSize: (width * 0.032).clamp(10.0, 14.0),
                     color: SreaColors.allClearText.withValues(alpha: 0.8),
                   ),
                 ),

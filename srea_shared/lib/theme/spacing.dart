@@ -1,117 +1,119 @@
+// File: spacing.dart
+
 import 'package:flutter/material.dart';
 
 class SreaSpacing {
   SreaSpacing._();
 
-  // ─── Base Scale ────────────────────────────────────────────
-  // Built on a 4pt grid — every value is a multiple of 4
-  static const double xs  = 4;   // Tight inline gaps
-  static const double sm  = 8;   // Small gaps between elements
-  static const double md  = 16;  // Standard padding inside containers
-  static const double lg  = 24;  // Section spacing, card padding
-  static const double xl  = 32;  // Large section gaps
-  static const double xxl = 48;  // Hero/splash screen spacing
+  static double _scale(BuildContext context, double base) {
+    final width = MediaQuery.of(context).size.width;
+    final scale = (width / 375).clamp(0.8, 1.5);
+    return base * scale;
+  }
 
-  // ─── Screen / Page ─────────────────────────────────────────
+  static double xs(BuildContext context) => _scale(context, 4);
+  static double sm(BuildContext context) => _scale(context, 8);
+  static double md(BuildContext context) => _scale(context, 16);
+  static double lg(BuildContext context) => _scale(context, 24);
+  static double xl(BuildContext context) => _scale(context, 32);
+  static double xxl(BuildContext context) => _scale(context, 48);
 
-  // Outer horizontal padding for all screens
-  static const EdgeInsets screenPadding = EdgeInsets.symmetric(
-    horizontal: 20,
-    vertical: 16,
-  );
+  static double inputGap(BuildContext context) => _scale(context, 16);
+  static double inputLabelGap(BuildContext context) => _scale(context, 6);
+  static double sectionHeaderGap(BuildContext context) => _scale(context, 12);
+  static double sectionGap(BuildContext context) => _scale(context, 32);
+  static double cardGap(BuildContext context) => _scale(context, 12);
+  static double avatarGap(BuildContext context) => _scale(context, 12);
+  static double iconGap(BuildContext context) => _scale(context, 8);
+  static double listItemGap(BuildContext context) => _scale(context, 8);
 
-  // Padding for scrollable screen content
-  static const EdgeInsets screenScrollPadding = EdgeInsets.fromLTRB(
-    20, 16, 20, 32,
-  );
+  static EdgeInsets screenPadding(BuildContext context) {
+    return EdgeInsets.symmetric(
+      horizontal: _scale(context, 20),
+      vertical: _scale(context, 16),
+    );
+  }
 
-  // ─── AppBar ────────────────────────────────────────────────
-  static const EdgeInsets appBarPadding = EdgeInsets.symmetric(
-    horizontal: 20,
-  );
+  static EdgeInsets screenScrollPadding(BuildContext context) {
+    return EdgeInsets.fromLTRB(
+      _scale(context, 20),
+      _scale(context, 16),
+      _scale(context, 20),
+      _scale(context, 32),
+    );
+  }
 
-  // ─── Cards ─────────────────────────────────────────────────
-  // Standard padding inside a card
-  static const EdgeInsets cardPadding = EdgeInsets.all(16);
+  static EdgeInsets appBarPadding(BuildContext context) {
+    return EdgeInsets.symmetric(horizontal: _scale(context, 20));
+  }
 
-  // Compact card — for list items or small info cards
-  static const EdgeInsets cardPaddingSmall = EdgeInsets.symmetric(
-    horizontal: 16,
-    vertical: 12,
-  );
+  static EdgeInsets cardPadding(BuildContext context) {
+    return EdgeInsets.all(_scale(context, 16));
+  }
 
-  // Gap between cards in a list or grid
-  static const double cardGap = 12;
+  static EdgeInsets cardPaddingSmall(BuildContext context) {
+    return EdgeInsets.symmetric(
+      horizontal: _scale(context, 16),
+      vertical: _scale(context, 12),
+    );
+  }
 
-  // ─── Buttons ───────────────────────────────────────────────
-  // Standard button padding
-  static const EdgeInsets buttonPadding = EdgeInsets.symmetric(
-    horizontal: 24,
-    vertical: 14,
-  );
+  static EdgeInsets buttonPadding(BuildContext context) {
+    return EdgeInsets.symmetric(
+      horizontal: _scale(context, 24),
+      vertical: _scale(context, 14),
+    );
+  }
 
-  // Small button padding
-  static const EdgeInsets buttonPaddingSmall = EdgeInsets.symmetric(
-    horizontal: 16,
-    vertical: 10,
-  );
+  static EdgeInsets buttonPaddingSmall(BuildContext context) {
+    return EdgeInsets.symmetric(
+      horizontal: _scale(context, 16),
+      vertical: _scale(context, 10),
+    );
+  }
 
-  // Full-width button padding
-  static const EdgeInsets buttonPaddingFull = EdgeInsets.symmetric(
-    horizontal: 20,
-    vertical: 16,
-  );
+  static EdgeInsets buttonPaddingFull(BuildContext context) {
+    return EdgeInsets.symmetric(
+      horizontal: _scale(context, 20),
+      vertical: _scale(context, 16),
+    );
+  }
 
-  // ─── Input Fields ──────────────────────────────────────────
-  // Padding inside text fields
-  static const EdgeInsets inputPadding = EdgeInsets.symmetric(
-    horizontal: 16,
-    vertical: 14,
-  );
+  static EdgeInsets inputPadding(BuildContext context) {
+    return EdgeInsets.symmetric(
+      horizontal: _scale(context, 16),
+      vertical: _scale(context, 14),
+    );
+  }
 
-  // Gap between input fields in a form
-  static const double inputGap = 16;
+  static EdgeInsets sectionPadding(BuildContext context) {
+    return EdgeInsets.symmetric(vertical: _scale(context, 24));
+  }
 
-  // Gap between label and input field
-  static const double inputLabelGap = 6;
+  static EdgeInsets listItemPadding(BuildContext context) {
+    return EdgeInsets.symmetric(
+      horizontal: _scale(context, 20),
+      vertical: _scale(context, 12),
+    );
+  }
 
-  // ─── Section ───────────────────────────────────────────────
-  // Padding around a full section block
-  static const EdgeInsets sectionPadding = EdgeInsets.symmetric(
-    vertical: 24,
-  );
+  static EdgeInsets bottomNavPadding(BuildContext context) {
+    return EdgeInsets.symmetric(
+      horizontal: _scale(context, 8),
+      vertical: _scale(context, 8),
+    );
+  }
 
-  // Gap between section header and its content
-  static const double sectionHeaderGap = 12;
+  static EdgeInsets bottomSheetPadding(BuildContext context) {
+    return EdgeInsets.fromLTRB(
+      _scale(context, 20),
+      _scale(context, 24),
+      _scale(context, 20),
+      _scale(context, 32),
+    );
+  }
 
-  // Gap between sections on a page
-  static const double sectionGap = 32;
-
-  // ─── List Items ────────────────────────────────────────────
-  // Padding for each row in a list
-  static const EdgeInsets listItemPadding = EdgeInsets.symmetric(
-    horizontal: 20,
-    vertical: 12,
-  );
-
-  // Gap between list items
-  static const double listItemGap = 8;
-
-  // ─── Bottom Navigation ─────────────────────────────────────
-  static const EdgeInsets bottomNavPadding = EdgeInsets.symmetric(
-    horizontal: 8,
-    vertical: 8,
-  );
-
-  // ─── Bottom Sheet ──────────────────────────────────────────
-  static const EdgeInsets bottomSheetPadding = EdgeInsets.fromLTRB(
-    20, 24, 20, 32,
-  );
-
-  // ─── Modal / Dialog ────────────────────────────────────────
-  static const EdgeInsets modalPadding = EdgeInsets.all(24);
-
-  // ─── Avatar / Icon ─────────────────────────────────────────
-  static const double avatarGap = 12; // Gap between avatar and text
-  static const double iconGap   = 8;  // Gap between icon and label
+  static EdgeInsets modalPadding(BuildContext context) {
+    return EdgeInsets.all(_scale(context, 24));
+  }
 }
