@@ -1,19 +1,11 @@
+// File: srea_button.dart
+
 import 'package:flutter/material.dart';
 import '../theme/theme.dart';
 
 enum SreaButtonType { primary, report, update, outline, ghost }
 enum SreaButtonSize { small, medium, large }
 
-/// A reusable button widget for SREA.
-///
-/// Usage:
-/// ```dart
-/// SreaButton(label: 'Login', onPressed: () {}, fullWidth: true)
-/// SreaButton(label: 'Register', onPressed: () {}, fullWidth: true)
-/// SreaButton.report(label: 'Report Incident', onPressed: () {})
-/// SreaButton.update(label: 'Update', onPressed: () {})
-/// SreaButton.outline(label: 'Cancel', onPressed: () {})
-/// ```
 class SreaButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -89,42 +81,59 @@ class SreaButton extends StatelessWidget {
     }
   }
 
-  EdgeInsets get _padding {
+  EdgeInsets _getPadding(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    double hPadding;
     switch (size) {
       case SreaButtonSize.small:
-        return SreaSpacing.buttonPaddingSmall;
+        hPadding = width * 0.04;
+        break;
       case SreaButtonSize.large:
-        return SreaSpacing.buttonPaddingFull;
+        hPadding = width * 0.07;
+        break;
       case SreaButtonSize.medium:
-        return SreaSpacing.buttonPadding;
+        hPadding = width * 0.055;
+        break;
     }
+    hPadding = hPadding.clamp(12.0, 32.0);
+    final vPadding = size == SreaButtonSize.small ? 8.0 : 12.0;
+    return EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding);
   }
 
-  double get _fontSize {
+  double _getFontSize(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    double baseSize;
     switch (size) {
       case SreaButtonSize.small:
-        return 12;
+        baseSize = 12.0;
+        break;
       case SreaButtonSize.large:
-        return 16;
+        baseSize = 16.0;
+        break;
       case SreaButtonSize.medium:
-        return 15;
+        baseSize = 14.0;
+        break;
     }
+    final scale = (width / 375).clamp(0.8, 1.2);
+    return baseSize * scale;
   }
+
+  double _getIconSize(BuildContext context) => _getFontSize(context) + 2;
 
   @override
   Widget build(BuildContext context) {
     final isDisabled = onPressed == null && !isLoading;
 
-    final textStyle = SreaText.label.copyWith(
-      fontSize: _fontSize,
+    final textStyle = SreaText.label(context).copyWith(
+      fontSize: _getFontSize(context),
       fontWeight: FontWeight.w700,
       color: isDisabled ? SreaColors.textHint : _fgColor,
     );
 
     Widget content = isLoading
         ? SizedBox(
-            height: 18,
-            width: 18,
+            height: _getFontSize(context) + 2,
+            width: _getFontSize(context) + 2,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               color: _fgColor,
@@ -137,10 +146,10 @@ class SreaButton extends StatelessWidget {
               if (icon != null) ...[
                 Icon(
                   icon,
-                  size: 18,
+                  size: _getIconSize(context),
                   color: isDisabled ? SreaColors.textHint : _fgColor,
                 ),
-                SizedBox(width: SreaSpacing.iconGap),
+                const SizedBox(width: 8),
               ],
               Text(label, style: textStyle),
             ],
@@ -167,10 +176,12 @@ class SreaButton extends StatelessWidget {
             child: InkWell(
               onTap: (isLoading || isDisabled) ? null : onPressed,
               borderRadius: SreaRadius.button,
+              focusColor: SreaColors.primaryLight,
+              hoverColor: SreaColors.primaryLight.withValues(alpha: 0.1),
               splashColor: Colors.white.withValues(alpha: 0.15),
               highlightColor: Colors.white.withValues(alpha: 0.08),
               child: Padding(
-                padding: _padding,
+                padding: _getPadding(context),
                 child: Center(child: content),
               ),
             ),

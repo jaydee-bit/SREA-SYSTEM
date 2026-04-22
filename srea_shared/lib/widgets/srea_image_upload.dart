@@ -1,23 +1,16 @@
+// File: srea_image_upload.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../theme/theme.dart';
 
-// ─────────────────────────────────────────────────────────────
-// SreaImageUpload — Tap to upload image (e.g. Valid ID)
-//
-// Usage:
-// SreaImageUpload(
-//   label: 'Upload ID',
-//   onImageSelected: (file) => setState(() => _idFile = file),
-// )
-// ─────────────────────────────────────────────────────────────
 class SreaImageUpload extends StatelessWidget {
   final String? label;
   final File? selectedImage;
   final VoidCallback onTap;
   final VoidCallback? onRemove;
   final String hint;
-  final double height;
+  final double? height;
 
   const SreaImageUpload({
     super.key,
@@ -26,29 +19,36 @@ class SreaImageUpload extends StatelessWidget {
     required this.onTap,
     this.onRemove,
     this.hint = 'Tap to upload',
-    this.height = 140,
+    this.height,
   });
+
+  double _getHeight(BuildContext context) {
+    if (height != null) return height!;
+    final width = MediaQuery.of(context).size.width;
+    return (width * 0.35).clamp(120.0, 200.0);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final h = _getHeight(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (label != null) ...[
           Text(
             label!,
-            style: SreaText.bodySmall.copyWith(
+            style: SreaText.bodySmall(context).copyWith(
               color: SreaColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(height: SreaSpacing.inputLabelGap),
+          const SizedBox(height: 6),
         ],
         GestureDetector(
           onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            height: height,
+            height: h,
             width: double.infinity,
             decoration: BoxDecoration(
               color: selectedImage != null
@@ -60,7 +60,6 @@ class SreaImageUpload extends StatelessWidget {
                     ? SreaColors.borderFocused
                     : SreaColors.border,
                 width: 1.5,
-                // Dashed border effect via a custom painter below
               ),
             ),
             child: selectedImage != null
@@ -68,7 +67,7 @@ class SreaImageUpload extends StatelessWidget {
                     file: selectedImage!,
                     onRemove: onRemove,
                   )
-                : _UploadPlaceholder(hint: hint),
+                : _UploadPlaceholder(hint: hint, height: h),
           ),
         ),
       ],
@@ -76,52 +75,53 @@ class SreaImageUpload extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Upload placeholder (no image selected)
-// ─────────────────────────────────────────────────────────────
 class _UploadPlaceholder extends StatelessWidget {
   final String hint;
-  const _UploadPlaceholder({required this.hint});
+  final double height;
+
+  const _UploadPlaceholder({required this.hint, required this.height});
 
   @override
   Widget build(BuildContext context) {
+    final iconSize = (height * 0.25).clamp(30.0, 60.0);
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          width: 44,
-          height: 44,
+          width: iconSize,
+          height: iconSize,
           decoration: BoxDecoration(
             color: SreaColors.primaryLight,
             borderRadius: SreaRadius.pill,
           ),
-          child: const Icon(
+          child: Icon(
             Icons.add_photo_alternate_outlined,
             color: SreaColors.primary,
-            size: 22,
+            size: iconSize * 0.5,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: height * 0.08),
         Text(
           hint,
-          style: SreaText.bodySmall.copyWith(
+          style: SreaText.bodySmall(context).copyWith(
+            fontSize: (height * 0.06).clamp(12.0, 16.0),
             color: SreaColors.textSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: height * 0.04),
         Text(
           'JPG, PNG up to 5MB',
-          style: SreaText.label.copyWith(color: SreaColors.textHint),
+          style: SreaText.label(context).copyWith(
+            fontSize: (height * 0.045).clamp(9.0, 12.0),
+            color: SreaColors.textHint,
+          ),
         ),
       ],
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Selected image preview with remove button
-// ─────────────────────────────────────────────────────────────
 class _SelectedImagePreview extends StatelessWidget {
   final File file;
   final VoidCallback? onRemove;
@@ -165,10 +165,6 @@ class _SelectedImagePreview extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// SreaDashedBorder — Custom dashed border painter
-// Wrap any widget with this for a dashed border look
-// ─────────────────────────────────────────────────────────────
 class SreaDashedBorder extends StatelessWidget {
   final Widget child;
   final Color color;

@@ -1,9 +1,9 @@
+// File: srea_badge.dart
+// Path: srea_shared/lib/widgets/srea_badge.dart
+
 import 'package:flutter/material.dart';
 import '../theme/theme.dart';
 
-// ─────────────────────────────────────────────────────────────
-// Risk level and status badge types
-// ─────────────────────────────────────────────────────────────
 enum SreaBadgeType {
   critical,
   high,
@@ -17,15 +17,6 @@ enum SreaBadgeType {
   custom,
 }
 
-// ─────────────────────────────────────────────────────────────
-// SreaBadge — Risk level / status tag
-//
-// Usage:
-// SreaBadge(type: SreaBadgeType.critical, label: 'Critical')
-// SreaBadge(type: SreaBadgeType.resolved, label: 'Resolved')
-// SreaBadge(type: SreaBadgeType.pending, label: 'Pending')
-// SreaBadge.custom(label: 'Custom', color: Colors.purple, bgColor: Colors.purple.shade50)
-// ─────────────────────────────────────────────────────────────
 class SreaBadge extends StatelessWidget {
   final SreaBadgeType type;
   final String label;
@@ -48,9 +39,9 @@ class SreaBadge extends StatelessWidget {
     required Color color,
     required Color bgColor,
     this.showDot = true,
-  })  : type = SreaBadgeType.custom,
-        customColor = color,
-        customBgColor = bgColor;
+  }) : type = SreaBadgeType.custom,
+       customColor = color,
+       customBgColor = bgColor;
 
   Color get _color {
     if (type == SreaBadgeType.custom) return customColor!;
@@ -104,32 +95,76 @@ class SreaBadge extends StatelessWidget {
     }
   }
 
+  Color get _textColor {
+    if (type == SreaBadgeType.custom) return customColor!;
+    switch (type) {
+      case SreaBadgeType.critical:
+        return SreaColors.onCriticalBg;
+      case SreaBadgeType.high:
+        return SreaColors.onHighBg;
+      case SreaBadgeType.medium:
+        return SreaColors.onMediumBg;
+      case SreaBadgeType.low:
+        return SreaColors.onLowBg;
+      case SreaBadgeType.underReview:
+        return SreaColors.onHighBg;
+      case SreaBadgeType.resolved:
+        return SreaColors.onLowBg;
+      case SreaBadgeType.pending:
+        return SreaColors.onMediumBg;
+      case SreaBadgeType.rejected:
+        return SreaColors.onCriticalBg;
+      case SreaBadgeType.info:
+        return SreaColors.primary;
+      default:
+        return SreaColors.primary;
+    }
+  }
+
+  EdgeInsets _getPadding(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final horizontal = (width * 0.025).clamp(8.0, 16.0);
+    final vertical = (width * 0.01).clamp(4.0, 8.0);
+    return EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical);
+  }
+
+  double _getFontSize(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    return (11.0 * (width / 375).clamp(0.8, 1.2)).clamp(9.0, 14.0);
+  }
+
+  double _getDotSize(BuildContext context) => _getFontSize(context) * 0.5;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: _bgColor,
-        borderRadius: SreaRadius.pill,
-      ),
+      padding: _getPadding(context),
+      decoration: BoxDecoration(color: _bgColor, borderRadius: SreaRadius.pill),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (showDot) ...[
             Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: _color,
-                shape: BoxShape.circle,
-              ),
+              width: _getDotSize(context),
+              height: _getDotSize(context),
+              decoration: BoxDecoration(color: _color, shape: BoxShape.circle),
             ),
-            const SizedBox(width: 5),
+            SizedBox(width: _getDotSize(context) * 0.8),
+          ],
+          // Additional visual distinction for critical: add warning icon
+          if (type == SreaBadgeType.critical) ...[
+            Icon(
+              Icons.warning_rounded,
+              size: _getFontSize(context) - 2,
+              color: _textColor,
+            ),
+            SizedBox(width: _getDotSize(context) * 0.5),
           ],
           Text(
             label,
-            style: SreaText.label.copyWith(
-              color: _color,
+            style: SreaText.label(context).copyWith(
+              fontSize: _getFontSize(context),
+              color: _textColor,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -139,9 +174,6 @@ class SreaBadge extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Convenience factory methods for common badges
-// ─────────────────────────────────────────────────────────────
 class SreaBadges {
   SreaBadges._();
 
