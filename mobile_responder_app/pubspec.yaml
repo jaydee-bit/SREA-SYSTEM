@@ -35,6 +35,11 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   google_fonts: ^8.0.2
+  http: ^1.6.0
+  shared_preferences: ^2.5.5
+  flutter_map: ^8.3.0
+  latlong2: ^0.9.1
+  image_picker: ^1.2.1
   srea_shared:
     path: ../srea_shared
 
