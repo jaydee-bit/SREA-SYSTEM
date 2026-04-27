@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
 import 'auth/login_screen.dart';
+import 'incident_list_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -35,7 +36,10 @@ class ProfileScreen extends StatelessWidget {
                     bottomRight: Radius.circular(28),
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 32,
+                  horizontal: 24,
+                ),
                 child: Column(
                   children: [
                     // Avatar
@@ -60,7 +64,6 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Name
                     Text(
                       responderName,
                       style: SreaText.headlineSmall(context).copyWith(
@@ -69,17 +72,18 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // Email
                     Text(
                       responderEmail,
-                      style: SreaText.bodySmall(context).copyWith(
-                        color: SreaColors.bottomNavInactive,
-                      ),
+                      style: SreaText.bodySmall(
+                        context,
+                      ).copyWith(color: SreaColors.bottomNavInactive),
                     ),
                     const SizedBox(height: 12),
-                    // Badge
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: SreaColors.lowBg,
                         borderRadius: SreaRadius.pill,
@@ -87,7 +91,11 @@ class ProfileScreen extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.verified_rounded, size: 14, color: SreaColors.low),
+                          const Icon(
+                            Icons.verified_rounded,
+                            size: 14,
+                            color: SreaColors.low,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             responderBadge,
@@ -103,26 +111,50 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              // Stats cards
+              // Stats cards (now tappable)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
                     Expanded(
-                      child: _StatCard(
-                        title: 'Incidents Handled',
-                        value: incidentsHandled.toString(),
-                        icon: Icons.check_circle_outline_rounded,
-                        color: SreaColors.buttonUpdate,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const IncidentListScreen(
+                                initialFilter: 'resolved',
+                              ),
+                            ),
+                          );
+                        },
+                        child: _StatCard(
+                          title: 'Incidents Handled',
+                          value: incidentsHandled.toString(),
+                          icon: Icons.check_circle_outline_rounded,
+                          color: SreaColors.buttonUpdate,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: _StatCard(
-                        title: 'Active Incidents',
-                        value: activeIncidents.toString(),
-                        icon: Icons.pending_actions_rounded,
-                        color: SreaColors.medium,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const IncidentListScreen(
+                                initialFilter: 'active',
+                              ),
+                            ),
+                          );
+                        },
+                        child: _StatCard(
+                          title: 'Active Incidents',
+                          value: activeIncidents.toString(),
+                          icon: Icons.pending_actions_rounded,
+                          color: SreaColors.medium,
+                        ),
                       ),
                     ),
                   ],
@@ -166,9 +198,9 @@ class ProfileScreen extends StatelessWidget {
                               children: [
                                 Text(
                                   'Responder Role',
-                                  style: SreaText.label(context).copyWith(
-                                    color: SreaColors.textSecondary,
-                                  ),
+                                  style: SreaText.label(
+                                    context,
+                                  ).copyWith(color: SreaColors.textSecondary),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
@@ -213,18 +245,24 @@ class ProfileScreen extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: SreaRadius.modal),
         title: Text(
           'Logout',
-          style: SreaText.titleLarge(context).copyWith(color: SreaColors.textPrimary),
+          style: SreaText.titleLarge(
+            context,
+          ).copyWith(color: SreaColors.textPrimary),
         ),
         content: Text(
           'Are you sure you want to logout?',
-          style: SreaText.bodySmall(context).copyWith(color: SreaColors.textSecondary),
+          style: SreaText.bodySmall(
+            context,
+          ).copyWith(color: SreaColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Cancel',
-              style: SreaText.bodySmall(context).copyWith(color: SreaColors.textSecondary),
+              style: SreaText.bodySmall(
+                context,
+              ).copyWith(color: SreaColors.textSecondary),
             ),
           ),
           TextButton(
@@ -239,10 +277,9 @@ class ProfileScreen extends StatelessWidget {
             },
             child: Text(
               'Logout',
-              style: SreaText.bodySmall(context).copyWith(
-                color: SreaColors.error,
-                fontWeight: FontWeight.w700,
-              ),
+              style: SreaText.bodySmall(
+                context,
+              ).copyWith(color: SreaColors.error, fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -293,10 +330,10 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             title,
-            style: SreaText.label(context).copyWith(
-              color: SreaColors.textSecondary,
-            ),
-            textAlign: TextAlign.center, // ✅ correct placement on Text widget
+            style: SreaText.label(
+              context,
+            ).copyWith(color: SreaColors.textSecondary),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
