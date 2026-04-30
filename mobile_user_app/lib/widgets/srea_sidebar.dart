@@ -9,7 +9,8 @@ import '../screens/about_screen.dart';
 class SreaSidebar extends StatelessWidget {
   final String userName;
   final String email;
-  final bool isVerified;
+  final String
+  verificationStatus; // "Verified", "Pending Verification", "Unverified", "Non-Resident", or ""
   final String activeRoute;
   final void Function(String route) onNavigate;
   final VoidCallback onLogout;
@@ -19,7 +20,7 @@ class SreaSidebar extends StatelessWidget {
     super.key,
     required this.userName,
     required this.email,
-    this.isVerified = false,
+    required this.verificationStatus,
     this.activeRoute = '/home',
     required this.onNavigate,
     required this.onLogout,
@@ -106,66 +107,7 @@ class SreaSidebar extends StatelessWidget {
                     ).copyWith(color: SreaColors.bottomNavInactive),
                   ),
                   SizedBox(height: SreaSpacing.sm(context)),
-                  if (isVerified)
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: SreaSpacing.sm(context),
-                        vertical: SreaSpacing.xs(context),
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: SreaRadius.pill,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.verified_rounded,
-                            size: 14,
-                            color: SreaColors.primary,
-                          ),
-                          SizedBox(width: SreaSpacing.xs(context)),
-                          Text(
-                            'Verified',
-                            style: SreaText.label(context).copyWith(
-                              color: SreaColors.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: SreaSpacing.sm(context),
-                        vertical: SreaSpacing.xs(context),
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: SreaRadius.pill,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.pending_outlined,
-                            size: 14,
-                            color: SreaColors.textOnPrimary,
-                          ),
-                          SizedBox(width: SreaSpacing.xs(context)),
-                          Text(
-                            'Pending Verification',
-                            style: SreaText.label(
-                              context,
-                            ).copyWith(color: SreaColors.textOnPrimary),
-                          ),
-                        ],
-                      ),
-                    ),
+                  _buildStatusBadge(context),
                 ],
               ),
             ),
@@ -250,6 +192,69 @@ class SreaSidebar extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(BuildContext context) {
+    Color bgColor;
+    Color textColor;
+    IconData icon;
+    String label;
+
+    switch (verificationStatus) {
+      case 'Verified':
+        bgColor = Colors.white;
+        textColor = SreaColors.primary;
+        icon = Icons.verified_rounded;
+        label = 'Verified';
+        break;
+      case 'Pending Verification':
+        bgColor = Colors.white.withValues(alpha: 0.15);
+        textColor = SreaColors.textOnPrimary;
+        icon = Icons.pending_outlined;
+        label = 'Pending Verification';
+        break;
+      case 'Unverified':
+        bgColor = Colors.white.withValues(alpha: 0.15);
+        textColor = SreaColors.textOnPrimary;
+        icon = Icons.error_outline_rounded;
+        label = 'Unverified';
+        break;
+      case 'Non-Resident':
+        bgColor = Colors.white.withValues(alpha: 0.15);
+        textColor = SreaColors.textOnPrimary;
+        icon = Icons.location_city_outlined;
+        label = 'Non-Resident';
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: SreaSpacing.sm(context),
+        vertical: SreaSpacing.xs(context),
+      ),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: SreaRadius.pill,
+        border: (verificationStatus != 'Verified')
+            ? Border.all(color: Colors.white.withValues(alpha: 0.3))
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: textColor),
+          SizedBox(width: SreaSpacing.xs(context)),
+          Text(
+            label,
+            style: SreaText.label(
+              context,
+            ).copyWith(color: textColor, fontWeight: FontWeight.w700),
+          ),
+        ],
       ),
     );
   }

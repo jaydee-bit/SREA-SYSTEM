@@ -2,11 +2,17 @@
 
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
+import '../../services/api_service.dart';
 import 'login_screen.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   final String token;
-  const ResetPasswordScreen({super.key, required this.token});
+  final String email;
+  const ResetPasswordScreen({
+    super.key,
+    required this.token,
+    required this.email,
+  });
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
@@ -55,7 +61,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
     super.dispose();
   }
 
-  PasswordStrength get _strength => PasswordStrength.evaluate(_passwordController.text);
+  PasswordStrength get _strength =>
+      PasswordStrength.evaluate(_passwordController.text);
 
   bool get _canSubmit {
     final p = _passwordController.text;
@@ -66,10 +73,29 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
   Future<void> _handleReset() async {
     if (!_canSubmit) return;
     if (!_formKey.currentState!.validate()) return;
-    setState(() { _isLoading = true; _apiError = null; });
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() { _isLoading = false; _success = true; });
+    setState(() {
+      _isLoading = true;
+      _apiError = null;
+    });
+    try {
+      final api = ApiService();
+      await api.resetPassword(
+        widget.email,
+        widget.token,
+        _passwordController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _success = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _apiError = 'Invalid or expired reset link. Please request a new one.';
+      });
+    }
   }
 
   @override
@@ -89,13 +115,16 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                     padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 500),
-                      transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
+                      transitionBuilder: (child, anim) =>
+                          FadeTransition(opacity: anim, child: child),
                       child: _success
                           ? _SuccessState(
                               key: const ValueKey('success'),
                               onBackToLogin: () => Navigator.pushAndRemoveUntil(
                                 context,
-                                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginScreen(),
+                                ),
                                 (r) => false,
                               ),
                             )
@@ -148,7 +177,11 @@ class _ResetHeader extends StatelessWidget {
         children: [
           IconButton(
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: SreaColors.textOnPrimary, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: SreaColors.textOnPrimary,
+              size: 20,
+            ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,7 +196,9 @@ class _ResetHeader extends StatelessWidget {
               ),
               Text(
                 'Create a new secure password',
-                style: SreaText.label(context).copyWith(color: SreaColors.bottomNavInactive),
+                style: SreaText.label(
+                  context,
+                ).copyWith(color: SreaColors.bottomNavInactive),
               ),
             ],
           ),
@@ -215,10 +250,20 @@ class _ResetFormState extends State<_ResetForm> {
   }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: SreaText.bodySmall(context).copyWith(color: SreaColors.textHint),
-      prefixIcon: const Icon(Icons.lock_outline_rounded, size: 18, color: SreaColors.textHint),
+      hintStyle: SreaText.bodySmall(
+        context,
+      ).copyWith(color: SreaColors.textHint),
+      prefixIcon: const Icon(
+        Icons.lock_outline_rounded,
+        size: 18,
+        color: SreaColors.textHint,
+      ),
       suffixIcon: IconButton(
-        icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20, color: SreaColors.textHint),
+        icon: Icon(
+          obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+          size: 20,
+          color: SreaColors.textHint,
+        ),
         onPressed: onToggle,
       ),
       contentPadding: SreaSpacing.inputPadding(context),
@@ -226,11 +271,17 @@ class _ResetFormState extends State<_ResetForm> {
       fillColor: SreaColors.surface,
       enabledBorder: OutlineInputBorder(
         borderRadius: SreaRadius.input,
-        borderSide: BorderSide(color: hasError ? SreaColors.error : SreaColors.border, width: 1),
+        borderSide: BorderSide(
+          color: hasError ? SreaColors.error : SreaColors.border,
+          width: 1,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: SreaRadius.input,
-        borderSide: BorderSide(color: hasError ? SreaColors.error : SreaColors.borderFocused, width: 1.5),
+        borderSide: BorderSide(
+          color: hasError ? SreaColors.error : SreaColors.borderFocused,
+          width: 1.5,
+        ),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: SreaRadius.input,
@@ -245,9 +296,11 @@ class _ResetFormState extends State<_ResetForm> {
 
   @override
   Widget build(BuildContext context) {
-    final passwordsMatch = widget.passwordController.text == widget.confirmController.text &&
+    final passwordsMatch =
+        widget.passwordController.text == widget.confirmController.text &&
         widget.confirmController.text.isNotEmpty;
-    final confirmHasError = widget.confirmController.text.isNotEmpty && !passwordsMatch;
+    final confirmHasError =
+        widget.confirmController.text.isNotEmpty && !passwordsMatch;
 
     return Form(
       key: widget.formKey,
@@ -262,7 +315,11 @@ class _ResetFormState extends State<_ResetForm> {
                 color: SreaColors.primaryLight,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.lock_outline_rounded, size: 40, color: SreaColors.primary),
+              child: const Icon(
+                Icons.lock_outline_rounded,
+                size: 40,
+                color: SreaColors.primary,
+              ),
             ),
           ),
           SizedBox(height: SreaSpacing.lg(context)),
@@ -277,10 +334,9 @@ class _ResetFormState extends State<_ResetForm> {
           SizedBox(height: SreaSpacing.xs(context)),
           Text(
             'Your new password must be at least 8 characters and include uppercase, lowercase, numbers, and symbols.',
-            style: SreaText.bodySmall(context).copyWith(
-              color: SreaColors.textSecondary,
-              height: 1.6,
-            ),
+            style: SreaText.bodySmall(
+              context,
+            ).copyWith(color: SreaColors.textSecondary, height: 1.6),
           ),
           if (widget.apiError != null) ...[
             SizedBox(height: SreaSpacing.md(context)),
@@ -289,16 +345,24 @@ class _ResetFormState extends State<_ResetForm> {
               decoration: BoxDecoration(
                 color: SreaColors.criticalBg,
                 borderRadius: SreaRadius.input,
-                border: Border.all(color: SreaColors.error.withValues(alpha: 0.4)),
+                border: Border.all(
+                  color: SreaColors.error.withValues(alpha: 0.4),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline_rounded, size: 18, color: SreaColors.error),
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    size: 18,
+                    color: SreaColors.error,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       widget.apiError!,
-                      style: SreaText.bodySmall(context).copyWith(color: SreaColors.error),
+                      style: SreaText.bodySmall(
+                        context,
+                      ).copyWith(color: SreaColors.error),
                     ),
                   ),
                 ],
@@ -313,12 +377,16 @@ class _ResetFormState extends State<_ResetForm> {
             focusNode: widget.passwordFocus,
             obscureText: _obscurePassword,
             textInputAction: TextInputAction.next,
-            onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(widget.confirmFocus),
-            style: SreaText.bodySmall(context).copyWith(color: SreaColors.textPrimary),
+            onFieldSubmitted: (_) =>
+                FocusScope.of(context).requestFocus(widget.confirmFocus),
+            style: SreaText.bodySmall(
+              context,
+            ).copyWith(color: SreaColors.textPrimary),
             decoration: _inputDecoration(
               hint: 'Enter new password',
               obscure: _obscurePassword,
-              onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
+              onToggle: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
             ),
             validator: (v) {
               if (v == null || v.isEmpty) return 'Password is required';
@@ -340,16 +408,20 @@ class _ResetFormState extends State<_ResetForm> {
             obscureText: _obscureConfirm,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => widget.onSubmit(),
-            style: SreaText.bodySmall(context).copyWith(color: SreaColors.textPrimary),
+            style: SreaText.bodySmall(
+              context,
+            ).copyWith(color: SreaColors.textPrimary),
             decoration: _inputDecoration(
               hint: 'Re-enter password',
               obscure: _obscureConfirm,
-              onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
+              onToggle: () =>
+                  setState(() => _obscureConfirm = !_obscureConfirm),
               hasError: confirmHasError,
             ),
             validator: (v) {
               if (v == null || v.isEmpty) return 'Please confirm password';
-              if (v != widget.passwordController.text) return 'Passwords do not match';
+              if (v != widget.passwordController.text)
+                return 'Passwords do not match';
               return null;
             },
           ),
@@ -358,15 +430,21 @@ class _ResetFormState extends State<_ResetForm> {
             Row(
               children: [
                 Icon(
-                  passwordsMatch ? Icons.check_circle_outline_rounded : Icons.cancel_outlined,
+                  passwordsMatch
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.cancel_outlined,
                   size: 14,
-                  color: passwordsMatch ? SreaColors.buttonUpdate : SreaColors.error,
+                  color: passwordsMatch
+                      ? SreaColors.buttonUpdate
+                      : SreaColors.error,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   passwordsMatch ? 'Passwords match' : 'Passwords do not match',
                   style: SreaText.label(context).copyWith(
-                    color: passwordsMatch ? SreaColors.buttonUpdate : SreaColors.error,
+                    color: passwordsMatch
+                        ? SreaColors.buttonUpdate
+                        : SreaColors.error,
                   ),
                 ),
               ],
@@ -422,14 +500,15 @@ class _PasswordStrengthBar extends StatelessWidget {
           children: [
             Text(
               strength.label,
-              style: SreaText.label(context).copyWith(
-                color: strength.color,
-                fontWeight: FontWeight.w600,
-              ),
+              style: SreaText.label(
+                context,
+              ).copyWith(color: strength.color, fontWeight: FontWeight.w600),
             ),
             Text(
               strength.hint,
-              style: SreaText.label(context).copyWith(color: SreaColors.textHint),
+              style: SreaText.label(
+                context,
+              ).copyWith(color: SreaColors.textHint),
             ),
           ],
         ),
@@ -451,12 +530,20 @@ class _SuccessState extends StatelessWidget {
           tween: Tween(begin: 0.0, end: 1.0),
           duration: const Duration(milliseconds: 600),
           curve: Curves.elasticOut,
-          builder: (_, value, child) => Transform.scale(scale: value, child: child),
+          builder: (_, value, child) =>
+              Transform.scale(scale: value, child: child),
           child: Container(
             width: 100,
             height: 100,
-            decoration: const BoxDecoration(color: Color(0xFFEAF9EE), shape: BoxShape.circle),
-            child: const Icon(Icons.check_circle_rounded, size: 56, color: SreaColors.buttonUpdate),
+            decoration: const BoxDecoration(
+              color: Color(0xFFEAF9EE),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_circle_rounded,
+              size: 56,
+              color: SreaColors.buttonUpdate,
+            ),
           ),
         ),
         SizedBox(height: SreaSpacing.lg(context)),
@@ -470,10 +557,9 @@ class _SuccessState extends StatelessWidget {
         SizedBox(height: SreaSpacing.sm(context)),
         Text(
           'Your password has been successfully updated. You can now log in with your new password.',
-          style: SreaText.bodySmall(context).copyWith(
-            color: SreaColors.textSecondary,
-            height: 1.6,
-          ),
+          style: SreaText.bodySmall(
+            context,
+          ).copyWith(color: SreaColors.textSecondary, height: 1.6),
           textAlign: TextAlign.center,
         ),
         SizedBox(height: SreaSpacing.md(context)),
@@ -486,15 +572,18 @@ class _SuccessState extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.info_outline_rounded, size: 16, color: SreaColors.textSecondary),
+              const Icon(
+                Icons.info_outline_rounded,
+                size: 16,
+                color: SreaColors.textSecondary,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'If you did not make this change, contact your barangay admin or MDRRMO immediately.',
-                  style: SreaText.label(context).copyWith(
-                    color: SreaColors.textSecondary,
-                    height: 1.5,
-                  ),
+                  style: SreaText.label(
+                    context,
+                  ).copyWith(color: SreaColors.textSecondary, height: 1.5),
                 ),
               ),
             ],
@@ -518,26 +607,58 @@ class PasswordStrength {
   final String label;
   final String hint;
   final Color color;
-  const PasswordStrength._({required this.level, required this.label, required this.hint, required this.color});
+  const PasswordStrength._({
+    required this.level,
+    required this.label,
+    required this.hint,
+    required this.color,
+  });
 
   static PasswordStrength evaluate(String password) {
     if (password.isEmpty) {
-      return const PasswordStrength._(level: 0, label: '', hint: '', color: SreaColors.border);
+      return const PasswordStrength._(
+        level: 0,
+        label: '',
+        hint: '',
+        color: SreaColors.border,
+      );
     }
     int score = 0;
     if (password.length >= 8) score++;
     if (password.length >= 12) score++;
-    if (RegExp(r'[A-Z]').hasMatch(password) && RegExp(r'[a-z]').hasMatch(password)) score++;
+    if (RegExp(r'[A-Z]').hasMatch(password) &&
+        RegExp(r'[a-z]').hasMatch(password))
+      score++;
     if (RegExp(r'[0-9]').hasMatch(password)) score++;
     if (RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password)) score++;
     if (score <= 1) {
-      return const PasswordStrength._(level: 1, label: 'Weak', hint: 'Add uppercase, numbers & symbols', color: SreaColors.critical);
+      return const PasswordStrength._(
+        level: 1,
+        label: 'Weak',
+        hint: 'Add uppercase, numbers & symbols',
+        color: SreaColors.critical,
+      );
     } else if (score == 2) {
-      return const PasswordStrength._(level: 2, label: 'Fair', hint: 'Add symbols for stronger security', color: SreaColors.medium);
+      return const PasswordStrength._(
+        level: 2,
+        label: 'Fair',
+        hint: 'Add symbols for stronger security',
+        color: SreaColors.medium,
+      );
     } else if (score == 3) {
-      return const PasswordStrength._(level: 3, label: 'Good', hint: 'Almost there!', color: SreaColors.high);
+      return const PasswordStrength._(
+        level: 3,
+        label: 'Good',
+        hint: 'Almost there!',
+        color: SreaColors.high,
+      );
     } else {
-      return const PasswordStrength._(level: 4, label: 'Strong', hint: 'Great password!', color: SreaColors.buttonUpdate);
+      return const PasswordStrength._(
+        level: 4,
+        label: 'Strong',
+        hint: 'Great password!',
+        color: SreaColors.buttonUpdate,
+      );
     }
   }
 }

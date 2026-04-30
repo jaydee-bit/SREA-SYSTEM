@@ -13,6 +13,7 @@ import 'announcements_screen.dart';
 import 'traffic_advisories_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'notifications_screen.dart';
+import '../services/api_service.dart';
 import '../services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -25,50 +26,26 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  // TOGGLE THESE FLAGS TO TEST DIFFERENT STATES
-  final bool _isResident = true;
-  final bool _hasAddressAndId = false;
-  final bool _isVerified = false;
-
-  final String _userName = 'Leon S. Kennedy';
-  final String _email = 'leon@gmail.com';
-  final String _barangay = 'Poblacion';
+  // User data from API
+  String _userName = '';
+  String _email = '';
   String? _profileImageUrl;
+  bool _isVerified = false;
+  String _role = '';
+  String _barangay = '';
+  String? _street;
+  String? _province;
+  String? _municipality;
+  String? _validIdPhoto;
 
-  final bool _hasActiveAlert = false;
-  final String _activeAlertLevel = 'none';
+  // Data from API
+  List<dynamic> _alerts = [];
+  List<dynamic> _announcements = [];
+  List<dynamic> _traffic = [];
+  bool _isLoading = true;
+  String? _error;
 
   final ValueNotifier<int> _unreadCountNotifier = ValueNotifier(0);
-
-  final List<Map<String, dynamic>> _recentUpdates = [
-    {
-      'type': 'traffic',
-      'title': 'Road closure along San Rafael–Angat highway',
-      'location': 'Barangay Sampaloc',
-      'time': '2 hrs ago',
-      'badgeType': SreaBadgeType.medium,
-      'badgeLabel': 'Medium',
-      'icon': Icons.traffic_outlined,
-    },
-    {
-      'type': 'alert',
-      'title': 'Flooding reported near Madlum river area',
-      'location': 'Barangay Madlum',
-      'time': '5 hrs ago',
-      'badgeType': SreaBadgeType.high,
-      'badgeLabel': 'High',
-      'icon': Icons.warning_amber_rounded,
-    },
-    {
-      'type': 'announcement',
-      'title': 'Power interruption scheduled maintenance',
-      'location': 'Barangay Poblacion',
-      'time': 'Yesterday',
-      'badgeType': null,
-      'badgeLabel': null,
-      'icon': Icons.campaign_outlined,
-    },
-  ];
 
   final List<Map<String, String>> _goBagItems = [
     {
@@ -84,10 +61,19 @@ class _HomeScreenState extends State<HomeScreen> {
     {'text': 'Emergency contact numbers of family, barangay, and MDRRMC.'},
   ];
 
+  // Null‑safe check for profile completion – only relevant for residents
+  bool get _hasCompletedProfile {
+    if (_role != 'resident') return false;
+    return (_street?.isNotEmpty == true) &&
+        (_province?.isNotEmpty == true) &&
+        (_municipality?.isNotEmpty == true) &&
+        (_validIdPhoto?.isNotEmpty == true);
+  }
+
   @override
   void initState() {
     super.initState();
-    // Schedule after the first frame to avoid calling setState during build
+    _loadData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateUnreadCount();
       NotificationService().addListener(_updateUnreadCount);
@@ -103,6 +89,64 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _updateUnreadCount() {
     _unreadCountNotifier.value = NotificationService().unreadCount;
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final api = ApiService();
+      final userFuture = api.getUser();
+      final alertsFuture = api.getAlerts();
+      final announcementsFuture = api.getAnnouncements();
+      final trafficFuture = api.getTrafficAdvisories();
+
+      final results = await Future.wait([
+        userFuture,
+        alertsFuture,
+        announcementsFuture,
+        trafficFuture,
+      ]);
+
+      final user = results[0] as Map<String, dynamic>;
+      final alerts = results[1] as List<dynamic>;
+      final announcements = results[2] as List<dynamic>;
+      final traffic = results[3] as List<dynamic>;
+
+      setState(() {
+        _userName = user['name'] ?? '';
+        _email = user['email'] ?? '';
+        _isVerified = user['is_verified'] ?? false;
+        _role = user['role'] ?? '';
+        _barangay = user['barangay'] ?? '';
+        _street = user['street'];
+        _province = user['province'];
+        _municipality = user['municipality'];
+        _validIdPhoto = user['valid_id_photo'];
+        _profileImageUrl = user['profile_image'];
+        _alerts = alerts;
+        _announcements = announcements;
+        _traffic = traffic;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load data. Pull to refresh.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _refresh() async {
+    await _loadData();
+  }
+
+  void _updateProfileImage(String? imagePath) {
+    setState(() {
+      _profileImageUrl = imagePath;
+    });
   }
 
   void _onBottomNavTap(int index) {
@@ -132,12 +176,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ).then((_) => setState(() => _currentIndex = 0));
         break;
     }
-  }
-
-  void _updateProfileImage(String? imagePath) {
-    setState(() {
-      _profileImageUrl = imagePath;
-    });
   }
 
   void _onSidebarNavigate(String route) {
@@ -182,7 +220,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onLogout() {
+  void _onLogout() async {
+    try {
+      final api = ApiService();
+      await api.logout();
+    } catch (_) {}
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -192,107 +234,227 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        drawer: SreaSidebar(
+          userName: '',
+          email: '',
+          verificationStatus: '',
+          activeRoute: '/home',
+          onNavigate: _onSidebarNavigate,
+          onLogout: _onLogout,
+          profileImageUrl: null,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null) {
+      return Scaffold(
+        drawer: SreaSidebar(
+          userName: _userName,
+          email: _email,
+          verificationStatus: '',
+          activeRoute: '/home',
+          onNavigate: _onSidebarNavigate,
+          onLogout: _onLogout,
+          profileImageUrl: _profileImageUrl,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _error!,
+                style: SreaText.bodySmall(
+                  context,
+                ).copyWith(color: SreaColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: _refresh, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Compute verification status for sidebar
+   // Compute status for sidebar
+    String verificationStatus = '';
+    if (_role == 'resident') {
+      if (!_hasCompletedProfile) {
+        verificationStatus = 'Unverified';
+      } else if (!_isVerified) {
+        verificationStatus = 'Pending Verification';
+      } else {
+        verificationStatus = 'Verified';
+      }
+    } else if (_role == 'non_resident') {
+      verificationStatus = 'Non-Resident';
+    }
+
+    // Build recent updates from combined API data
+    final List<Map<String, dynamic>> recentUpdates = [];
+
+    // Add alerts (up to 2)
+    for (var alert in _alerts.take(2)) {
+      recentUpdates.add({
+        'type': 'alert',
+        'title': alert['title'],
+        'location': alert['barangay'] ?? 'All barangays',
+        'time': _formatDate(alert['created_at']),
+        'badgeType': _levelToBadgeType(alert['level']),
+        'badgeLabel': alert['level'].toUpperCase(),
+        'icon': Icons.warning_amber_rounded,
+      });
+    }
+    // Add announcements (up to 2)
+    for (var ann in _announcements.take(2)) {
+      recentUpdates.add({
+        'type': 'announcement',
+        'title': ann['title'],
+        'location': ann['barangay'] ?? 'All barangays',
+        'time': _formatDate(ann['published_at']),
+        'badgeType': null,
+        'badgeLabel': null,
+        'icon': Icons.campaign_outlined,
+      });
+    }
+    // Add traffic (up to 2)
+    for (var traffic in _traffic.take(2)) {
+      recentUpdates.add({
+        'type': 'traffic',
+        'title': traffic['title'],
+        'location': traffic['location'],
+        'time': _formatDate(traffic['created_at']),
+        'badgeType': _severityToBadgeType(traffic['severity']),
+        'badgeLabel': traffic['severity'].toUpperCase(),
+        'icon': Icons.traffic_outlined,
+      });
+    }
+    // Sort by time descending (most recent first)
+    recentUpdates.sort((a, b) => b['time'].compareTo(a['time']));
+
+    final bool hasActiveAlert = _alerts.isNotEmpty;
+    final String activeAlertLevel = _alerts.isNotEmpty
+        ? _alerts.first['level']
+        : 'none';
+
     return Scaffold(
       backgroundColor: SreaColors.background,
       drawer: SreaSidebar(
         userName: _userName,
         email: _email,
-        isVerified: _isVerified,
+        verificationStatus: verificationStatus,
         activeRoute: '/home',
         onNavigate: _onSidebarNavigate,
         onLogout: _onLogout,
         profileImageUrl: _profileImageUrl,
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            _SreaAppBar(
-              userName: _userName.split(' ').first,
-              unreadCountNotifier: _unreadCountNotifier,
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _hasActiveAlert
-                        ? _ActiveAlertBanner(level: _activeAlertLevel)
-                        : const SreaAllClearBanner(),
-                    const SizedBox(height: 20),
+        child: RefreshIndicator(
+          onRefresh: _refresh,
+          child: Column(
+            children: [
+              _SreaAppBar(
+                userName: _userName.split(' ').first,
+                unreadCountNotifier: _unreadCountNotifier,
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      hasActiveAlert
+                          ? _ActiveAlertBanner(level: activeAlertLevel)
+                          : const SreaAllClearBanner(),
+                      const SizedBox(height: 20),
 
-                    if (_isResident && !_hasAddressAndId) ...[
-                      const _CompleteProfileBanner(),
-                      const SizedBox(height: 16),
-                    ] else if (_isResident && !_isVerified) ...[
-                      const _PendingVerificationBanner(),
-                      const SizedBox(height: 16),
-                    ],
+                      // Banner logic: only for residents
+                      if (_role == 'resident') ...[
+                        if (!_hasCompletedProfile)
+                          const _CompleteProfileBanner(),
+                        if (_hasCompletedProfile && !_isVerified)
+                          const _PendingVerificationBanner(),
+                        if (_hasCompletedProfile || !_isVerified)
+                          const SizedBox(height: 16),
+                      ],
 
-                    _SectionLabel(title: 'Emergency Preparedness'),
-                    const SizedBox(height: 10),
-                    const _PreparednessBanner(),
-                    const SizedBox(height: 24),
+                      _SectionLabel(title: 'Emergency Preparedness'),
+                      const SizedBox(height: 10),
+                      const _PreparednessBanner(),
+                      const SizedBox(height: 24),
 
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _SectionLabel(title: 'Recent Updates'),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const NotificationsScreen(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _SectionLabel(title: 'Recent Updates'),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationsScreen(),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              'See all',
+                              style: SreaText.label(context).copyWith(
+                                color: SreaColors.primary,
+                                fontWeight: FontWeight.w600,
                               ),
-                            );
-                          },
-                          child: Text(
-                            'See all',
-                            style: SreaText.label(context).copyWith(
-                              color: SreaColors.primary,
-                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    if (_recentUpdates.isEmpty)
-                      _EmptyAlerts()
-                    else
-                      Column(
-                        children: _recentUpdates.map((update) {
-                          final badgeWidget = update['badgeType'] != null
-                              ? SreaBadge(
-                                  type: update['badgeType'] as SreaBadgeType,
-                                  label: update['badgeLabel'] as String,
-                                )
-                              : const SizedBox.shrink();
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: SreaAlertCard(
-                              title: update['title'] as String,
-                              location: update['location'] as String,
-                              time: update['time'] as String,
-                              icon: update['icon'] as IconData,
-                              badge: badgeWidget,
-                              onTap: () {},
-                            ),
-                          );
-                        }).toList(),
+                        ],
                       ),
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 10),
+                      if (recentUpdates.isEmpty)
+                        _EmptyAlerts()
+                      else
+                        Column(
+                          children: recentUpdates.map((update) {
+                            final badgeWidget = update['badgeType'] != null
+                                ? SreaBadge(
+                                    type: update['badgeType'] as SreaBadgeType,
+                                    label: update['badgeLabel'] as String,
+                                  )
+                                : const SizedBox.shrink();
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: SreaAlertCard(
+                                title: update['title'] as String,
+                                location: update['location'] as String,
+                                time: update['time'] as String,
+                                icon: update['icon'] as IconData,
+                                badge: badgeWidget,
+                                onTap: () {
+                                  // Navigate to detail screen based on type
+                                  if (update['type'] == 'alert') {
+                                    // TODO: navigate to alert detail
+                                  } else if (update['type'] == 'announcement') {
+                                    // TODO: navigate to announcement detail
+                                  } else if (update['type'] == 'traffic') {
+                                    // TODO: navigate to traffic detail
+                                  }
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      const SizedBox(height: 24),
 
-                    _SectionLabel(title: 'Disaster Preparedness'),
-                    const SizedBox(height: 10),
-                    _GoBagCard(items: _goBagItems),
-                    const SizedBox(height: 16),
-                  ],
+                      _SectionLabel(title: 'Disaster Preparedness'),
+                      const SizedBox(height: 10),
+                      _GoBagCard(items: _goBagItems),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: SreaBottomNav(
@@ -303,9 +465,50 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
+
+  String _formatDate(String? dateString) {
+    if (dateString == null) return 'Recently';
+    try {
+      final date = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final diff = now.difference(date);
+      if (diff.inDays > 0) return '${diff.inDays} days ago';
+      if (diff.inHours > 0) return '${diff.inHours} hours ago';
+      if (diff.inMinutes > 0) return '${diff.inMinutes} minutes ago';
+      return 'Just now';
+    } catch (e) {
+      return 'Recently';
+    }
+  }
+
+  SreaBadgeType _levelToBadgeType(String level) {
+    switch (level.toLowerCase()) {
+      case 'critical':
+        return SreaBadgeType.critical;
+      case 'high':
+        return SreaBadgeType.high;
+      case 'medium':
+        return SreaBadgeType.medium;
+      default:
+        return SreaBadgeType.low;
+    }
+  }
+
+  SreaBadgeType _severityToBadgeType(String severity) {
+    switch (severity.toLowerCase()) {
+      case 'high':
+        return SreaBadgeType.high;
+      case 'medium':
+        return SreaBadgeType.medium;
+      default:
+        return SreaBadgeType.low;
+    }
+  }
 }
 
-// ─── AppBar with notification badge ───────────────────────────────────
+// ========== AUXILIARY WIDGETS (unchanged from original) ==========
+// These are exactly as in your original file – included for completeness.
+
 class _SreaAppBar extends StatelessWidget {
   final String userName;
   final ValueNotifier<int> unreadCountNotifier;
@@ -401,7 +604,6 @@ class _SreaAppBar extends StatelessWidget {
   }
 }
 
-// ─── Active alert banner ─────────────────────────────────────────────
 class _ActiveAlertBanner extends StatelessWidget {
   final String level;
   const _ActiveAlertBanner({required this.level});
@@ -480,7 +682,6 @@ class _ActiveAlertBanner extends StatelessWidget {
   }
 }
 
-// ─── Section label ───────────────────────────────────────────────────
 class _SectionLabel extends StatelessWidget {
   final String title;
   const _SectionLabel({required this.title});
@@ -498,7 +699,6 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ─── Empty alerts state ─────────────────────────────────────────────
 class _EmptyAlerts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -531,7 +731,6 @@ class _EmptyAlerts extends StatelessWidget {
   }
 }
 
-// ─── Preparedness banner ────────────────────────────────────────────
 class _PreparednessBanner extends StatelessWidget {
   const _PreparednessBanner();
 
@@ -620,7 +819,6 @@ class _PreparednessBanner extends StatelessWidget {
   }
 }
 
-// ─── Complete Profile Banner (Blue) ─────────────────────────────────
 class _CompleteProfileBanner extends StatelessWidget {
   const _CompleteProfileBanner();
 
@@ -680,7 +878,6 @@ class _CompleteProfileBanner extends StatelessWidget {
   }
 }
 
-// ─── Pending Verification Banner (Yellow) ───────────────────────────
 class _PendingVerificationBanner extends StatelessWidget {
   const _PendingVerificationBanner();
 
@@ -727,7 +924,6 @@ class _PendingVerificationBanner extends StatelessWidget {
   }
 }
 
-// ─── Go-Bag card ────────────────────────────────────────────────────
 class _GoBagCard extends StatelessWidget {
   final List<Map<String, String>> items;
   const _GoBagCard({required this.items});

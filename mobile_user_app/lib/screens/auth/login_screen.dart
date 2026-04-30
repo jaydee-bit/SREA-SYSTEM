@@ -6,6 +6,7 @@ import 'package:srea_shared/srea_shared.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../home_screen.dart';
 import 'forgot_password_screen.dart';
+import '../../services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -51,13 +52,33 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
+    try {
+      final api = ApiService();
+      await api.login(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Login failed. Please check your email and password.',
+            style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+          ),
+          backgroundColor: SreaColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: SreaRadius.input),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -82,16 +103,16 @@ class _LoginScreenState extends State<LoginScreen>
                         children: [
                           Text(
                             'Welcome back',
-                            style: SreaText.headlineSmall(context).copyWith(
-                              color: SreaColors.textPrimary,
-                            ),
+                            style: SreaText.headlineSmall(
+                              context,
+                            ).copyWith(color: SreaColors.textPrimary),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Sign in to continue to SREA',
-                            style: SreaText.bodySmall(context).copyWith(
-                              color: SreaColors.textSecondary,
-                            ),
+                            style: SreaText.bodySmall(
+                              context,
+                            ).copyWith(color: SreaColors.textSecondary),
                           ),
                           const SizedBox(height: 28),
                           SreaTextField(
@@ -102,7 +123,8 @@ class _LoginScreenState extends State<LoginScreen>
                             prefixIcon: Icons.mail_outline_rounded,
                             required: true,
                             validator: (v) {
-                              if (v == null || v.isEmpty) return 'Email is required';
+                              if (v == null || v.isEmpty)
+                                return 'Email is required';
                               if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
                                 return 'Enter a valid email';
                               }
@@ -116,7 +138,8 @@ class _LoginScreenState extends State<LoginScreen>
                             controller: _passwordController,
                             required: true,
                             validator: (v) {
-                              if (v == null || v.isEmpty) return 'Password is required';
+                              if (v == null || v.isEmpty)
+                                return 'Password is required';
                               if (v.length < 6) return 'Minimum 6 characters';
                               return null;
                             },
@@ -128,7 +151,10 @@ class _LoginScreenState extends State<LoginScreen>
                               onTap: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ForgotPasswordScreen(),
+                                  ),
                                 );
                               },
                               child: Text(
@@ -151,15 +177,23 @@ class _LoginScreenState extends State<LoginScreen>
                           const SizedBox(height: 24),
                           Row(
                             children: [
-                              const Expanded(child: Divider(color: SreaColors.divider)),
+                              const Expanded(
+                                child: Divider(color: SreaColors.divider),
+                              ),
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
                                 child: Text(
                                   'or',
-                                  style: SreaText.label(context).copyWith(color: SreaColors.textHint),
+                                  style: SreaText.label(
+                                    context,
+                                  ).copyWith(color: SreaColors.textHint),
                                 ),
                               ),
-                              const Expanded(child: Divider(color: SreaColors.divider)),
+                              const Expanded(
+                                child: Divider(color: SreaColors.divider),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 24),
@@ -168,20 +202,26 @@ class _LoginScreenState extends State<LoginScreen>
                               onTap: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const RegisterScreen(),
+                                  ),
                                 );
                               },
                               child: RichText(
                                 text: TextSpan(
                                   text: "Don't have an account?  ",
-                                  style: SreaText.bodySmall(context).copyWith(color: SreaColors.textSecondary),
+                                  style: SreaText.bodySmall(
+                                    context,
+                                  ).copyWith(color: SreaColors.textSecondary),
                                   children: [
                                     TextSpan(
                                       text: 'Register',
-                                      style: SreaText.bodySmall(context).copyWith(
-                                        color: SreaColors.primary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                                      style: SreaText.bodySmall(context)
+                                          .copyWith(
+                                            color: SreaColors.primary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -238,8 +278,14 @@ class _HeaderSection extends StatelessWidget {
                     letterSpacing: 4,
                   ),
                   children: const [
-                    TextSpan(text: 'SR', style: TextStyle(color: Colors.white)),
-                    TextSpan(text: 'EA', style: TextStyle(color: Color(0xFFFF3B30))),
+                    TextSpan(
+                      text: 'SR',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    TextSpan(
+                      text: 'EA',
+                      style: TextStyle(color: Color(0xFFFF3B30)),
+                    ),
                   ],
                 ),
               ),
