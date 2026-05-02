@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
+import '../../services/api_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -73,13 +74,29 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
     if (!_canSubmit) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() {
-      _isLoading = false;
-      _submitted = true;
-    });
-    _startCooldown();
+    try {
+      final api = ApiService();
+      await api.forgotPassword(_emailController.text.trim());
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _submitted = true;
+      });
+      _startCooldown();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to send reset link. Please try again later.',
+            style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+          ),
+          backgroundColor: SreaColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _startCooldown({int seconds = 60}) {
@@ -98,22 +115,36 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
   Future<void> _handleResend() async {
     if (_cooldown > 0) return;
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    _startCooldown();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Reset link resent successfully.',
-          style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+    try {
+      final api = ApiService();
+      await api.forgotPassword(_emailController.text.trim());
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _startCooldown();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Reset link resent successfully.',
+            style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+          ),
+          backgroundColor: SreaColors.buttonUpdate,
+          behavior: SnackBarBehavior.floating,
         ),
-        backgroundColor: SreaColors.buttonUpdate,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: SreaRadius.input),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to resend reset link. Please try again later.',
+            style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+          ),
+          backgroundColor: SreaColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -198,8 +229,11 @@ class _ForgotHeader extends StatelessWidget {
         children: [
           IconButton(
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: SreaColors.textOnPrimary, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: SreaColors.textOnPrimary,
+              size: 20,
+            ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,9 +248,9 @@ class _ForgotHeader extends StatelessWidget {
               ),
               Text(
                 'We\'ll help you get back in',
-                style: SreaText.label(context).copyWith(
-                  color: SreaColors.bottomNavInactive,
-                ),
+                style: SreaText.label(
+                  context,
+                ).copyWith(color: SreaColors.bottomNavInactive),
               ),
             ],
           ),
@@ -261,7 +295,11 @@ class _FormState extends StatelessWidget {
                 color: SreaColors.primaryLight,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.lock_reset_rounded, size: 40, color: SreaColors.primary),
+              child: const Icon(
+                Icons.lock_reset_rounded,
+                size: 40,
+                color: SreaColors.primary,
+              ),
             ),
           ),
           SizedBox(height: SreaSpacing.lg(context)),
@@ -276,10 +314,9 @@ class _FormState extends StatelessWidget {
           SizedBox(height: SreaSpacing.sm(context)),
           Text(
             'Enter the email address associated with your SREA account and we\'ll send you a password reset link.',
-            style: SreaText.bodySmall(context).copyWith(
-              color: SreaColors.textSecondary,
-              height: 1.6,
-            ),
+            style: SreaText.bodySmall(
+              context,
+            ).copyWith(color: SreaColors.textSecondary, height: 1.6),
           ),
           SizedBox(height: SreaSpacing.xl(context)),
           SreaInputLabel(label: 'Email Address', required: true),
@@ -290,36 +327,52 @@ class _FormState extends StatelessWidget {
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => onSubmit(),
-            style: SreaText.bodySmall(context).copyWith(color: SreaColors.textPrimary),
+            style: SreaText.bodySmall(
+              context,
+            ).copyWith(color: SreaColors.textPrimary),
             decoration: InputDecoration(
               hintText: 'example@gmail.com',
-              hintStyle: SreaText.bodySmall(context).copyWith(color: SreaColors.textHint),
-              prefixIcon: const Icon(Icons.mail_outline_rounded, size: 18, color: SreaColors.textHint),
+              hintStyle: SreaText.bodySmall(
+                context,
+              ).copyWith(color: SreaColors.textHint),
+              prefixIcon: const Icon(
+                Icons.mail_outline_rounded,
+                size: 18,
+                color: SreaColors.textHint,
+              ),
               suffixIcon: emailController.text.isNotEmpty
                   ? Icon(
                       emailError == null
                           ? Icons.check_circle_outline_rounded
                           : Icons.error_outline_rounded,
                       size: 18,
-                      color: emailError == null ? SreaColors.buttonUpdate : SreaColors.error,
+                      color: emailError == null
+                          ? SreaColors.buttonUpdate
+                          : SreaColors.error,
                     )
                   : null,
               errorText: emailError,
-              errorStyle: SreaText.label(context).copyWith(color: SreaColors.error),
+              errorStyle: SreaText.label(
+                context,
+              ).copyWith(color: SreaColors.error),
               contentPadding: SreaSpacing.inputPadding(context),
               filled: true,
               fillColor: SreaColors.surface,
               enabledBorder: OutlineInputBorder(
                 borderRadius: SreaRadius.input,
                 borderSide: BorderSide(
-                  color: emailError != null ? SreaColors.error : SreaColors.border,
+                  color: emailError != null
+                      ? SreaColors.error
+                      : SreaColors.border,
                   width: 1,
                 ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: SreaRadius.input,
                 borderSide: BorderSide(
-                  color: emailError != null ? SreaColors.error : SreaColors.borderFocused,
+                  color: emailError != null
+                      ? SreaColors.error
+                      : SreaColors.borderFocused,
                   width: 1.5,
                 ),
               ),
@@ -329,7 +382,10 @@ class _FormState extends StatelessWidget {
               ),
               focusedErrorBorder: OutlineInputBorder(
                 borderRadius: SreaRadius.input,
-                borderSide: const BorderSide(color: SreaColors.error, width: 1.5),
+                borderSide: const BorderSide(
+                  color: SreaColors.error,
+                  width: 1.5,
+                ),
               ),
             ),
           ),
@@ -353,7 +409,9 @@ class _FormState extends StatelessWidget {
               child: RichText(
                 text: TextSpan(
                   text: 'Remember your password?  ',
-                  style: SreaText.bodySmall(context).copyWith(color: SreaColors.textSecondary),
+                  style: SreaText.bodySmall(
+                    context,
+                  ).copyWith(color: SreaColors.textSecondary),
                   children: [
                     TextSpan(
                       text: 'Login',
@@ -398,8 +456,15 @@ class _SuccessState extends StatelessWidget {
         Container(
           width: 90,
           height: 90,
-          decoration: const BoxDecoration(color: Color(0xFFEAF9EE), shape: BoxShape.circle),
-          child: const Icon(Icons.mark_email_read_rounded, size: 46, color: SreaColors.buttonUpdate),
+          decoration: const BoxDecoration(
+            color: Color(0xFFEAF9EE),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.mark_email_read_rounded,
+            size: 46,
+            color: SreaColors.buttonUpdate,
+          ),
         ),
         SizedBox(height: SreaSpacing.lg(context)),
         Text(
@@ -416,14 +481,15 @@ class _SuccessState extends StatelessWidget {
           decoration: BoxDecoration(
             color: SreaColors.primaryLight,
             borderRadius: SreaRadius.card,
-            border: Border.all(color: SreaColors.borderFocused.withValues(alpha: 0.3)),
+            border: Border.all(
+              color: SreaColors.borderFocused.withValues(alpha: 0.3),
+            ),
           ),
           child: Text(
             'If an account with ${email.isNotEmpty ? email : 'that email'} exists, a password reset link has been sent. Please check your inbox and spam folder.',
-            style: SreaText.bodySmall(context).copyWith(
-              color: SreaColors.primary,
-              height: 1.6,
-            ),
+            style: SreaText.bodySmall(
+              context,
+            ).copyWith(color: SreaColors.primary, height: 1.6),
             textAlign: TextAlign.center,
           ),
         ),
@@ -507,7 +573,9 @@ class _TipRow extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: SreaText.label(context).copyWith(color: SreaColors.textSecondary),
+              style: SreaText.label(
+                context,
+              ).copyWith(color: SreaColors.textSecondary),
             ),
           ),
         ],

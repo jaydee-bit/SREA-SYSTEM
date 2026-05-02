@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:srea_shared/srea_shared.dart';
+import '../../services/api_service.dart';
 import '../home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -21,7 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool get _isResident => _residencyStatus == 'resident';
 
   final _firstNameController = TextEditingController();
-  final _middleNameController = TextEditingController(); // restored
+  final _middleNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -45,8 +46,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_residencyStatus == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please select your residency status',
-              style: SreaText.bodySmall(context).copyWith(color: Colors.white)),
+          content: Text(
+            'Please select your residency status',
+            style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+          ),
           backgroundColor: SreaColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: SreaRadius.input),
@@ -56,18 +59,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     setState(() => _isLoading = true);
 
-    // TODO: Replace with actual API call
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final api = ApiService();
+      final fullName =
+          '${_firstNameController.text.trim()} ${_middleNameController.text.trim()} ${_lastNameController.text.trim()}'
+              .trim();
+      await api.register({
+        'name': fullName,
+        'email': _emailController.text.trim(),
+        'password': _passwordController.text.trim(),
+        'password_confirmation': _confirmPasswordController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'role': _residencyStatus,
+        'barangay': _isResident ? 'Poblacion' : null,
+      });
 
-    setState(() => _isLoading = false);
-
-    if (mounted) {
-      // Both resident and non-resident go directly to home screen
-      // Resident status: unverified (no address/ID yet)
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
+    } catch (e) {
+      if (!mounted) return;
+      String errorMsg = 'Registration failed. Please try again.';
+      if (e.toString().contains('email already taken')) {
+        errorMsg = 'Email already registered. Please use a different email.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            errorMsg,
+            style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+          ),
+          backgroundColor: SreaColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -95,7 +124,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         hint: 'Enter first name',
                         controller: _firstNameController,
                         required: true,
-                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Required' : null,
                       ),
                       SizedBox(height: SreaSpacing.inputGap(context)),
 
@@ -111,7 +141,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         hint: 'Enter last name',
                         controller: _lastNameController,
                         required: true,
-                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Required' : null,
                       ),
                       SizedBox(height: SreaSpacing.inputGap(context)),
 
@@ -124,7 +155,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         required: true,
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Required';
-                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) return 'Enter a valid email';
+                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v))
+                            return 'Enter a valid email';
                           return null;
                         },
                       ),
@@ -143,7 +175,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ],
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Required';
-                          if (v.length < 11) return 'Enter a valid 11-digit number';
+                          if (v.length < 11)
+                            return 'Enter a valid 11-digit number';
                           return null;
                         },
                       ),
@@ -178,12 +211,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.info_outline, size: 18, color: SreaColors.primary),
+                              const Icon(
+                                Icons.info_outline,
+                                size: 18,
+                                color: SreaColors.primary,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   'You can complete your address and ID later in your profile.',
-                                  style: SreaText.label(context).copyWith(color: SreaColors.primary),
+                                  style: SreaText.label(
+                                    context,
+                                  ).copyWith(color: SreaColors.primary),
                                 ),
                               ),
                             ],
@@ -214,7 +253,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         required: true,
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Required';
-                          if (v != _passwordController.text) return 'Passwords do not match';
+                          if (v != _passwordController.text)
+                            return 'Passwords do not match';
                           return null;
                         },
                       ),
@@ -234,7 +274,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: RichText(
                             text: TextSpan(
                               text: 'Already have an account?  ',
-                              style: SreaText.bodySmall(context).copyWith(color: SreaColors.textSecondary),
+                              style: SreaText.bodySmall(
+                                context,
+                              ).copyWith(color: SreaColors.textSecondary),
                               children: [
                                 TextSpan(
                                   text: 'Login',
@@ -284,7 +326,11 @@ class _CompactHeader extends StatelessWidget {
         children: [
           IconButton(
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: SreaColors.textOnPrimary, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: SreaColors.textOnPrimary,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 4),
           Column(
@@ -292,14 +338,15 @@ class _CompactHeader extends StatelessWidget {
             children: [
               Text(
                 'Create Account',
-                style: SreaText.headlineSmall(context).copyWith(
-                  color: SreaColors.textOnPrimary,
-                  fontSize: 20,
-                ),
+                style: SreaText.headlineSmall(
+                  context,
+                ).copyWith(color: SreaColors.textOnPrimary, fontSize: 20),
               ),
               Text(
                 'Fill in the details below to register',
-                style: SreaText.label(context).copyWith(color: SreaColors.bottomNavInactive),
+                style: SreaText.label(
+                  context,
+                ).copyWith(color: SreaColors.bottomNavInactive),
               ),
             ],
           ),
@@ -317,9 +364,21 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(width: 4, height: 18, decoration: BoxDecoration(color: SreaColors.primary, borderRadius: SreaRadius.pill)),
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: SreaColors.primary,
+            borderRadius: SreaRadius.pill,
+          ),
+        ),
         const SizedBox(width: 8),
-        Text(title, style: SreaText.titleLarge(context).copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
+        Text(
+          title,
+          style: SreaText.titleLarge(
+            context,
+          ).copyWith(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
       ],
     );
   }

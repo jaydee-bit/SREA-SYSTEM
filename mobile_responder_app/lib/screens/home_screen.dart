@@ -1,6 +1,3 @@
-// File: home_screen.dart
-// Path: mobile_responder_app/lib/screens/home_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -18,7 +15,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    const IncidentListScreen(),
+    const IncidentListScreen(showAppBar: false), // ✅ no extra app bar
     const ProfileScreen(),
   ];
 
@@ -40,8 +37,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   letterSpacing: 2,
                 ),
                 children: const [
-                  TextSpan(text: 'SR', style: TextStyle(color: Colors.white)),
-                  TextSpan(text: 'EA', style: TextStyle(color: Color(0xFFFF3B30))),
+                  TextSpan(
+                    text: 'SR',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  TextSpan(
+                    text: 'EA',
+                    style: TextStyle(color: Color(0xFFFF3B30)),
+                  ),
                 ],
               ),
             ),
@@ -73,7 +76,10 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedItemColor: SreaColors.bottomNavActive,
         unselectedItemColor: SreaColors.bottomNavInactive,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Incidents'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.list_alt),
+            label: 'Incidents',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
