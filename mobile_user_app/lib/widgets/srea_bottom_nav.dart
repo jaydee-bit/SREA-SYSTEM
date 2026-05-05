@@ -2,6 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../services/api_service.dart';
 
 class SreaBottomNav extends StatelessWidget {
   final int currentIndex;
@@ -15,9 +19,18 @@ class SreaBottomNav extends StatelessWidget {
 
   static const List<_NavItemData> _items = [
     _NavItemData(icon: Icons.home_outlined, activeIcon: Icons.home_rounded),
-    _NavItemData(icon: Icons.campaign_outlined, activeIcon: Icons.campaign_rounded),
-    _NavItemData(icon: Icons.traffic_outlined, activeIcon: Icons.traffic_rounded),
-    _NavItemData(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded),
+    _NavItemData(
+      icon: Icons.campaign_outlined,
+      activeIcon: Icons.campaign_rounded,
+    ),
+    _NavItemData(
+      icon: Icons.traffic_outlined,
+      activeIcon: Icons.traffic_rounded,
+    ),
+    _NavItemData(
+      icon: Icons.person_outline_rounded,
+      activeIcon: Icons.person_rounded,
+    ),
   ];
 
   @override
@@ -25,36 +38,41 @@ class SreaBottomNav extends StatelessWidget {
     return BottomAppBar(
       color: SreaColors.primary,
       shape: const CircularNotchedRectangle(),
-      notchMargin: 6,          // slightly tighter notch
+      notchMargin: 6,
       elevation: 6,
-      padding: EdgeInsets.zero, // remove extra padding
+      padding: EdgeInsets.zero,
       child: SizedBox(
-        height: 56,             // reduced from 60 to 56 (standard)
+        height: 56,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            // Left 2 items
             Expanded(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [0, 1].map((i) => _NavButton(
-                  data: _items[i],
-                  isActive: currentIndex == i,
-                  onTap: () => onTap(i),
-                )).toList(),
+                children: [0, 1]
+                    .map(
+                      (i) => _NavButton(
+                        data: _items[i],
+                        isActive: currentIndex == i,
+                        onTap: () => onTap(i),
+                      ),
+                    )
+                    .toList(),
               ),
             ),
-            // Gap for FAB – keep original FAB width (60) + margins
             const SizedBox(width: 60),
-            // Right 2 items
             Expanded(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [2, 3].map((i) => _NavButton(
-                  data: _items[i],
-                  isActive: currentIndex == i,
-                  onTap: () => onTap(i),
-                )).toList(),
+                children: [2, 3]
+                    .map(
+                      (i) => _NavButton(
+                        data: _items[i],
+                        isActive: currentIndex == i,
+                        onTap: () => onTap(i),
+                      ),
+                    )
+                    .toList(),
               ),
             ),
           ],
@@ -94,8 +112,10 @@ class _NavButton extends StatelessWidget {
           children: [
             Icon(
               isActive ? data.activeIcon : data.icon,
-              color: isActive ? SreaColors.bottomNavActive : SreaColors.bottomNavInactive,
-              size: 26, // slightly smaller than original 32 for better proportion
+              color: isActive
+                  ? SreaColors.bottomNavActive
+                  : SreaColors.bottomNavInactive,
+              size: 26,
             ),
             const SizedBox(height: 2),
           ],
@@ -106,12 +126,14 @@ class _NavButton extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-// SreaEmergencyFAB — ORIGINAL SIZE (60x60, icon 28)
+// SreaEmergencyFAB — logs call + opens dialer
 // ─────────────────────────────────────────────────────────────
 class SreaEmergencyFAB extends StatelessWidget {
   final VoidCallback? onPressed;
 
   const SreaEmergencyFAB({super.key, this.onPressed});
+
+  static const String emergencyNumber = '+639933768440';
 
   @override
   Widget build(BuildContext context) {
@@ -126,48 +148,121 @@ class SreaEmergencyFAB extends StatelessWidget {
         child: const Icon(
           Icons.phone_in_talk_rounded,
           color: SreaColors.fabIcon,
-          size: 28, // original size
+          size: 28,
         ),
       ),
     );
   }
 
-  void _showEmergencyDialog(BuildContext context) {
-    showDialog(
+  Future<void> _showEmergencyDialog(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: SreaRadius.modal),
         title: Text(
           'Emergency Call',
-          style: SreaText.titleLarge(context).copyWith(color: SreaColors.textPrimary),
+          style: SreaText.titleLarge(
+            context,
+          ).copyWith(color: SreaColors.textPrimary),
         ),
         content: Text(
-          'This will place an emergency call to San Rafael MDRRMO. Continue?',
-          style: SreaText.bodySmall(context).copyWith(color: SreaColors.textSecondary),
+          'This will place an emergency call to San Rafael MDRRMO. Your location will be shared.\n\nContinue?',
+          style: SreaText.bodySmall(
+            context,
+          ).copyWith(color: SreaColors.textSecondary),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: Text(
               'Cancel',
-              style: SreaText.bodySmall(context).copyWith(color: SreaColors.textSecondary),
+              style: SreaText.bodySmall(
+                context,
+              ).copyWith(color: SreaColors.textSecondary),
             ),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: launch phone dialer
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: Text(
               'Call Now',
-              style: SreaText.bodySmall(context).copyWith(
-                color: SreaColors.error,
-                fontWeight: FontWeight.w700,
-              ),
+              style: SreaText.bodySmall(
+                context,
+              ).copyWith(color: SreaColors.error, fontWeight: FontWeight.w700),
             ),
           ),
         ],
       ),
     );
+    if (confirmed != true) return;
+
+    // Open dialer
+    final Uri telUri = Uri(scheme: 'tel', path: emergencyNumber);
+    try {
+      await launchUrl(telUri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not open dialer. Please call $emergencyNumber manually.',
+          ),
+          backgroundColor: SreaColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+
+    // Log the call (fire‑and‑forget, no waiting)
+    _logEmergencyCall(context);
+  }
+
+  Future<void> _logEmergencyCall(BuildContext context) async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+      if (permission == LocationPermission.deniedForever) return;
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+
+      String barangay = '';
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+        if (placemarks.isNotEmpty) {
+          barangay =
+              placemarks.first.subLocality ?? placemarks.first.locality ?? '';
+        }
+      } catch (_) {}
+
+      final api = ApiService();
+      await api.createEmergencyCall({
+        'location_lat': position.latitude,
+        'location_lng': position.longitude,
+        'barangay': barangay,
+        'notes': 'Emergency call from SREA app',
+      });
+
+      // Optional: success snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Emergency call logged.'),
+          backgroundColor: SreaColors.buttonUpdate,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      print('Emergency call logging failed: $e');
+      // Do not show error to user – the call already went through
+    }
   }
 }

@@ -33,6 +33,7 @@ class User extends Authenticatable
         'municipality',
         'valid_id_type',
         'valid_id_photo',
+        'profile_image',
     ];
 
     /**

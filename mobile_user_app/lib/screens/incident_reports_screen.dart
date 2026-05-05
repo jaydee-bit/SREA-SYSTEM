@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/incident_report_model.dart';
+import '../services/api_service.dart';
 import 'report_incident_screen.dart';
 import 'incident_report_detail_screen.dart';
 
@@ -14,6 +15,8 @@ class IncidentReportsScreen extends StatefulWidget {
 
 class _IncidentReportsScreenState extends State<IncidentReportsScreen> {
   List<IncidentReport> _reports = [];
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -21,57 +24,60 @@ class _IncidentReportsScreenState extends State<IncidentReportsScreen> {
     _loadReports();
   }
 
-  void _loadReports() {
-    _reports = [
-      IncidentReport(
-        id: '1',
-        type: 'Flooding',
-        description:
-            'Heavy flooding near the river. Several houses already submerged.',
-        photoPath: null,
-        barangay: 'Poblacion',
-        locationDetails: 'Near the church',
-        coordinates: const LatLng(15.0153, 120.9996),
-        address: 'Poblacion, San Rafael',
-        status: 'Pending',
-        reportedAt: DateTime.now().subtract(const Duration(days: 1)),
-        personsInvolved: 25,
-        reporterRole: 'resident',
-        reporterIsVerified: true,
-      ),
-      IncidentReport(
-        id: '2',
-        type: 'Road Accident',
-        description:
-            'Two vehicles collided near the highway junction. Injuries reported.',
-        photoPath: null,
-        barangay: 'Sampaloc',
-        locationDetails: 'Highway junction',
-        coordinates: const LatLng(15.0153, 120.9996),
-        address: 'Sampaloc, San Rafael',
-        status: 'Under Review',
-        reportedAt: DateTime.now().subtract(const Duration(days: 2)),
-        personsInvolved: 3,
-        reporterRole: 'non_resident',
-        reporterIsVerified: false,
-      ),
-      IncidentReport(
-        id: '3',
-        type: 'Fire',
-        description: 'Fire in a residential area. Firefighters are on site.',
-        photoPath: null,
-        barangay: 'Caingin',
-        locationDetails: 'Near the market',
-        coordinates: const LatLng(15.0153, 120.9996),
-        address: 'Caingin, San Rafael',
-        status: 'Resolved',
-        reportedAt: DateTime.now().subtract(const Duration(days: 5)),
-        personsInvolved: 0,
-        reporterRole: 'resident',
-        reporterIsVerified: false,
-      ),
-    ];
-    setState(() {});
+  Future<void> _loadReports() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final api = ApiService();
+      final data = await api.getMyIncidents();
+
+      // Ensure data is a list (API should return [])
+      if (data is List) {
+        final List<IncidentReport> incidents = data.map((json) {
+          final reporter = json['reporter'] ?? {};
+          return IncidentReport(
+            id: json['id'].toString(),
+            type: json['type'] ?? '',
+            description: json['description'] ?? '',
+            photoPath: json['photo_path'],
+            barangay: json['barangay'] ?? '',
+            locationDetails: json['location_details'],
+            coordinates: LatLng(
+              double.parse(json['latitude'].toString()),
+              double.parse(json['longitude'].toString()),
+            ),
+            address: json['address'] ?? '',
+            status: json['status'] ?? 'Pending',
+            reportedAt: DateTime.parse(json['reported_at']),
+            personsInvolved: json['persons_involved'],
+            reporterRole: reporter['role'] ?? '',
+            reporterIsVerified: reporter['is_verified'] ?? false,
+          );
+        }).toList();
+        setState(() {
+          _reports = incidents;
+          _isLoading = false;
+        });
+      } else {
+        // If API returns something else, treat as empty
+        setState(() {
+          _reports = [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading incidents: $e');
+      setState(() {
+        _error = 'Failed to load incidents. Pull to refresh.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _refresh() async {
+    await _loadReports();
   }
 
   @override
@@ -95,56 +101,82 @@ class _IncidentReportsScreenState extends State<IncidentReportsScreen> {
           ).copyWith(color: SreaColors.textOnPrimary),
         ),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Material(
-              elevation: 4,
-              borderRadius: SreaRadius.button,
-              shadowColor: SreaColors.buttonReport.withValues(alpha: 0.4),
-              child: SreaButton.report(
-                label: 'Report Incident',
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ReportIncidentScreen(),
-                    ),
-                  ).then((_) => _loadReports());
-                },
-                fullWidth: true,
-                icon: Icons.add_alert_rounded,
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Material(
+                elevation: 4,
+                borderRadius: SreaRadius.button,
+                shadowColor: SreaColors.buttonReport.withValues(alpha: 0.4),
+                child: SreaButton.report(
+                  label: 'Report Incident',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ReportIncidentScreen(),
+                      ),
+                    ).then((_) => _loadReports());
+                  },
+                  fullWidth: true,
+                  icon: Icons.add_alert_rounded,
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: _reports.isEmpty
-                ? _EmptyReports()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _reports.length,
-                    itemBuilder: (context, index) {
-                      final report = _reports[index];
-                      return _ReportCard(
-                        report: report,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                IncidentReportDetailScreen(report: report),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+            Expanded(child: _buildBody()),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _error!,
+              style: SreaText.bodySmall(
+                context,
+              ).copyWith(color: SreaColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: _loadReports, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+    if (_reports.isEmpty) {
+      return const _EmptyReports();
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _reports.length,
+      itemBuilder: (context, index) {
+        final report = _reports[index];
+        return _ReportCard(
+          report: report,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => IncidentReportDetailScreen(report: report),
+            ),
+          ).then((_) => _loadReports()),
+        );
+      },
     );
   }
 }
 
+// ─── Report Card widget (unchanged from original) ───────────────────────────
 class _ReportCard extends StatelessWidget {
   final IncidentReport report;
   final VoidCallback onTap;
@@ -332,6 +364,8 @@ class _ReportCard extends StatelessWidget {
 }
 
 class _EmptyReports extends StatelessWidget {
+  const _EmptyReports();
+
   @override
   Widget build(BuildContext context) {
     return Center(

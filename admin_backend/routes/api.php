@@ -28,6 +28,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Common
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+    // Inside auth:sanctum group
+    Route::post('/user/upload-image', [App\Http\Controllers\Api\User\UploadController::class, 'uploadImage']);
+    Route::post('/user/upload-profile-image', [App\Http\Controllers\Api\UserController::class, 'uploadProfileImage']);
+    Route::get('/user/profile', [App\Http\Controllers\Api\UserController::class, 'profile']);
+    Route::put('/user/profile', [App\Http\Controllers\Api\UserController::class, 'update']);
+
 
     // ==================== RESPONDER APP ENDPOINTS ====================
     Route::prefix('responder')->group(function () {

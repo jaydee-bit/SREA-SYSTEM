@@ -8,49 +8,57 @@ use Illuminate\Http\Request;
 
 class IncidentController extends Controller
 {
+    // Create a new incident report
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'type' => 'required|string',
             'description' => 'required|string',
-            'photo_path' => 'nullable|string',
             'barangay' => 'required|string',
             'location_details' => 'nullable|string',
             'latitude' => 'required|numeric',
             'longitude' => 'required|numeric',
             'address' => 'required|string',
             'persons_involved' => 'nullable|integer',
+            'photo_path' => 'nullable|string',
         ]);
 
         $incident = Incident::create([
             'user_id' => $request->user()->id,
-            'type' => $request->type,
-            'description' => $request->description,
-            'photo_path' => $request->photo_path,
-            'barangay' => $request->barangay,
-            'location_details' => $request->location_details,
-            'latitude' => $request->latitude,
-            'longitude' => $request->longitude,
-            'address' => $request->address,
+            'type' => $validated['type'],
+            'description' => $validated['description'],
+            'barangay' => $validated['barangay'],
+            'location_details' => $validated['location_details'],
+            'latitude' => $validated['latitude'],
+            'longitude' => $validated['longitude'],
+            'address' => $validated['address'],
+            'persons_involved' => $validated['persons_involved'] ?? null,
+            'photo_path' => $validated['photo_path'] ?? null,
             'status' => 'Pending',
             'reported_at' => now(),
-            'persons_involved' => $request->persons_involved,
         ]);
 
         return response()->json($incident, 201);
     }
 
+    // Get the authenticated user's incidents
     public function myIncidents(Request $request)
     {
-        $incidents = Incident::where('user_id', $request->user()->id)
+        $incidents = Incident::with('reporter')
+            ->where('user_id', $request->user()->id)
             ->orderBy('reported_at', 'desc')
             ->get();
+
         return response()->json($incidents);
     }
 
-    public function show($id)
+    // Get a single incident by ID (for the current user)
+    public function show(Request $request, $id)
     {
-        $incident = Incident::with(['reporter', 'assignedTo'])->findOrFail($id);
+        $incident = Incident::with('reporter')
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
         return response()->json($incident);
     }
 }

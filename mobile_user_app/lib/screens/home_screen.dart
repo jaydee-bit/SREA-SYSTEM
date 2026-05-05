@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../widgets/srea_sidebar.dart';
 import '../widgets/srea_bottom_nav.dart';
 import 'auth/login_screen.dart';
@@ -45,6 +46,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   String? _error;
 
+  // Welcome banner flag – only show once per session
+  bool _hasShownWelcome = false;
+
   final ValueNotifier<int> _unreadCountNotifier = ValueNotifier(0);
 
   final List<Map<String, String>> _goBagItems = [
@@ -61,7 +65,6 @@ class _HomeScreenState extends State<HomeScreen> {
     {'text': 'Emergency contact numbers of family, barangay, and MDRRMC.'},
   ];
 
-  // Null‑safe check for profile completion – only relevant for residents
   bool get _hasCompletedProfile {
     if (_role != 'resident') return false;
     return (_street?.isNotEmpty == true) &&
@@ -98,23 +101,9 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     try {
       final api = ApiService();
-      final userFuture = api.getUser();
-      final alertsFuture = api.getAlerts();
-      final announcementsFuture = api.getAnnouncements();
-      final trafficFuture = api.getTrafficAdvisories();
 
-      final results = await Future.wait([
-        userFuture,
-        alertsFuture,
-        announcementsFuture,
-        trafficFuture,
-      ]);
-
-      final user = results[0] as Map<String, dynamic>;
-      final alerts = results[1] as List<dynamic>;
-      final announcements = results[2] as List<dynamic>;
-      final traffic = results[3] as List<dynamic>;
-
+      // Load user profile – this must succeed
+      final user = await api.getUser();
       setState(() {
         _userName = user['name'] ?? '';
         _email = user['email'] ?? '';
@@ -126,14 +115,49 @@ class _HomeScreenState extends State<HomeScreen> {
         _municipality = user['municipality'];
         _validIdPhoto = user['valid_id_photo'];
         _profileImageUrl = user['profile_image'];
-        _alerts = alerts;
-        _announcements = announcements;
-        _traffic = traffic;
-        _isLoading = false;
       });
+
+      // Load alerts – if it fails, keep empty list
+      try {
+        final alerts = await api.getAlerts();
+        setState(() => _alerts = alerts);
+      } catch (e) {
+        print('Failed to load alerts: $e');
+        setState(() => _alerts = []);
+      }
+
+      // Load announcements – if it fails, keep empty list
+      try {
+        final announcements = await api.getAnnouncements();
+        setState(() => _announcements = announcements);
+      } catch (e) {
+        print('Failed to load announcements: $e');
+        setState(() => _announcements = []);
+      }
+
+      // Load traffic advisories – if it fails, keep empty list
+      try {
+        final traffic = await api.getTrafficAdvisories();
+        setState(() => _traffic = traffic);
+      } catch (e) {
+        print('Failed to load traffic: $e');
+        setState(() => _traffic = []);
+      }
+
+      setState(() => _isLoading = false);
+
+      // Show welcome banner after data loads the first time
+      if (!_hasShownWelcome && _userName.isNotEmpty) {
+        setState(() => _hasShownWelcome = true);
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted && _hasShownWelcome) {
+            setState(() => _hasShownWelcome = false);
+          }
+        });
+      }
     } catch (e) {
       setState(() {
-        _error = 'Failed to load data. Pull to refresh.';
+        _error = 'Failed to load user data. Pull to refresh.';
         _isLoading = false;
       });
     }
@@ -220,16 +244,59 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onLogout() async {
+  // LOGOUT WITH CLEAN STYLED DIALOG
+  Future<void> _onLogout() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: SreaRadius.modal),
+          backgroundColor: SreaColors.surface,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 20,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: SreaColors.primary),
+              const SizedBox(height: 16),
+              Text(
+                'Logging out...',
+                style: SreaText.bodySmall(context).copyWith(
+                  color: SreaColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
     try {
       final api = ApiService();
       await api.logout();
-    } catch (_) {}
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
+      if (mounted) {
+        Navigator.of(context).pop(); // close dialog
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // close dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Logout failed. Please try again.'),
+            backgroundColor: SreaColors.error,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -278,7 +345,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Compute verification status for sidebar
-   // Compute status for sidebar
     String verificationStatus = '';
     if (_role == 'resident') {
       if (!_hasCompletedProfile) {
@@ -355,10 +421,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onRefresh: _refresh,
           child: Column(
             children: [
-              _SreaAppBar(
-                userName: _userName.split(' ').first,
-                unreadCountNotifier: _unreadCountNotifier,
-              ),
+              _SreaAppBar(unreadCountNotifier: _unreadCountNotifier),
               Expanded(
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -366,6 +429,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (_hasShownWelcome) ...[
+                        _WelcomeBanner(
+                          userName: _userName,
+                          onClose: () =>
+                              setState(() => _hasShownWelcome = false),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       hasActiveAlert
                           ? _ActiveAlertBanner(level: activeAlertLevel)
                           : const SreaAllClearBanner(),
@@ -374,7 +445,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Banner logic: only for residents
                       if (_role == 'resident') ...[
                         if (!_hasCompletedProfile)
-                          const _CompleteProfileBanner(),
+                          _CompleteProfileBanner(onComplete: _loadData),
                         if (_hasCompletedProfile && !_isVerified)
                           const _PendingVerificationBanner(),
                         if (_hasCompletedProfile || !_isVerified)
@@ -430,14 +501,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 icon: update['icon'] as IconData,
                                 badge: badgeWidget,
                                 onTap: () {
-                                  // Navigate to detail screen based on type
-                                  if (update['type'] == 'alert') {
-                                    // TODO: navigate to alert detail
-                                  } else if (update['type'] == 'announcement') {
-                                    // TODO: navigate to announcement detail
-                                  } else if (update['type'] == 'traffic') {
-                                    // TODO: navigate to traffic detail
-                                  }
+                                  // TODO: navigate to detail screen
                                 },
                               ),
                             );
@@ -506,17 +570,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ========== AUXILIARY WIDGETS (unchanged from original) ==========
-// These are exactly as in your original file – included for completeness.
-
+// ========== APP BAR WITH SREA LOGO ==========
 class _SreaAppBar extends StatelessWidget {
-  final String userName;
   final ValueNotifier<int> unreadCountNotifier;
-
-  const _SreaAppBar({
-    required this.userName,
-    required this.unreadCountNotifier,
-  });
+  const _SreaAppBar({required this.unreadCountNotifier});
 
   @override
   Widget build(BuildContext context) {
@@ -540,13 +597,26 @@ class _SreaAppBar extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(width: SreaSpacing.iconGap(context)),
+          const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              'Welcome, $userName!',
-              style: SreaText.titleLarge(context).copyWith(
-                color: SreaColors.textOnPrimary,
-                fontWeight: FontWeight.w700,
+            child: RichText(
+              text: TextSpan(
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  fontStyle: FontStyle.italic,
+                  letterSpacing: 2,
+                ),
+                children: const [
+                  TextSpan(
+                    text: 'SR',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  TextSpan(
+                    text: 'EA',
+                    style: TextStyle(color: Color(0xFFFF3B30)),
+                  ),
+                ],
               ),
             ),
           ),
@@ -604,6 +674,68 @@ class _SreaAppBar extends StatelessWidget {
   }
 }
 
+// ========== ONE‑TIME WELCOME BANNER ==========
+class _WelcomeBanner extends StatelessWidget {
+  final String userName;
+  final VoidCallback onClose;
+  const _WelcomeBanner({required this.userName, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: SreaColors.lowBg,
+        borderRadius: SreaRadius.card,
+        border: Border.all(color: SreaColors.low.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: SreaColors.low.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.waving_hand_rounded, color: SreaColors.low),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome, ${userName.split(' ').first}!',
+                  style: SreaText.bodyLarge(context).copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: SreaColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  'Thank you for joining SREA. Stay safe and report incidents promptly.',
+                  style: SreaText.label(
+                    context,
+                  ).copyWith(color: SreaColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: onClose,
+            child: const Icon(
+              Icons.close,
+              size: 18,
+              color: SreaColors.textHint,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ========== ACTIVE ALERT BANNER ==========
 class _ActiveAlertBanner extends StatelessWidget {
   final String level;
   const _ActiveAlertBanner({required this.level});
@@ -682,6 +814,7 @@ class _ActiveAlertBanner extends StatelessWidget {
   }
 }
 
+// ========== SECTION LABEL ==========
 class _SectionLabel extends StatelessWidget {
   final String title;
   const _SectionLabel({required this.title});
@@ -699,6 +832,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+// ========== EMPTY ALERTS ==========
 class _EmptyAlerts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -731,6 +865,7 @@ class _EmptyAlerts extends StatelessWidget {
   }
 }
 
+// ========== PREPAREDNESS BANNER ==========
 class _PreparednessBanner extends StatelessWidget {
   const _PreparednessBanner();
 
@@ -742,8 +877,6 @@ class _PreparednessBanner extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [SreaColors.primaryDark, SreaColors.primary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
         ),
         borderRadius: SreaRadius.card,
         boxShadow: [
@@ -819,8 +952,10 @@ class _PreparednessBanner extends StatelessWidget {
   }
 }
 
+// ========== COMPLETE PROFILE BANNER (with callback) ==========
 class _CompleteProfileBanner extends StatelessWidget {
-  const _CompleteProfileBanner();
+  final VoidCallback onComplete;
+  const _CompleteProfileBanner({required this.onComplete});
 
   @override
   Widget build(BuildContext context) {
@@ -856,13 +991,16 @@ class _CompleteProfileBanner extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => const CompleteProfileScreen(),
                 ),
               );
+              if (result == true) {
+                onComplete();
+              }
             },
             child: Text(
               'Verify now',
@@ -878,6 +1016,7 @@ class _CompleteProfileBanner extends StatelessWidget {
   }
 }
 
+// ========== PENDING VERIFICATION BANNER ==========
 class _PendingVerificationBanner extends StatelessWidget {
   const _PendingVerificationBanner();
 
@@ -924,6 +1063,7 @@ class _PendingVerificationBanner extends StatelessWidget {
   }
 }
 
+// ========== GO-BAG CARD ==========
 class _GoBagCard extends StatelessWidget {
   final List<Map<String, String>> items;
   const _GoBagCard({required this.items});
