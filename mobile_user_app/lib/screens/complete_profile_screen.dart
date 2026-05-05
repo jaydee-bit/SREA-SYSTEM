@@ -2,10 +2,10 @@
 // Path: mobile_user_app/lib/screens/complete_profile_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:srea_shared/srea_shared.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import '../services/api_service.dart';
 
 class CompleteProfileScreen extends StatefulWidget {
   const CompleteProfileScreen({super.key});
@@ -17,11 +17,17 @@ class CompleteProfileScreen extends StatefulWidget {
 class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _isUploadingId = false;
 
   String? _barangay;
   final _streetController = TextEditingController();
   String? _validIdType;
   File? _idImage;
+  String? _uploadedIdPath;
+
+  // Controllers for default province and municipality
+  final _provinceController = TextEditingController(text: 'Bulacan');
+  final _municipalityController = TextEditingController(text: 'San Rafael');
 
   final List<String> _barangayOptions = [
     'Banca-Banca',
@@ -59,6 +65,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     'Tukod',
     'Ulingao',
   ];
+
   final List<String> _validIdOptions = [
     'PhilSys / National ID',
     'Driver\'s License',
@@ -73,6 +80,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   @override
   void dispose() {
     _streetController.dispose();
+    _provinceController.dispose();
+    _municipalityController.dispose();
     super.dispose();
   }
 
@@ -93,15 +102,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               title: const Text('Choose from Gallery'),
               onTap: () async {
                 Navigator.pop(context);
-                final picked = await picker.pickImage(
-                  source: ImageSource.gallery,
-                  maxWidth: 1024,
-                  maxHeight: 1024,
-                  imageQuality: 85,
-                );
-                if (picked != null) {
-                  setState(() => _idImage = File(picked.path));
-                }
+                await _uploadIdPhoto(ImageSource.gallery);
               },
             ),
             ListTile(
@@ -109,15 +110,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
               title: const Text('Take a Photo'),
               onTap: () async {
                 Navigator.pop(context);
-                final picked = await picker.pickImage(
-                  source: ImageSource.camera,
-                  maxWidth: 1024,
-                  maxHeight: 1024,
-                  imageQuality: 85,
-                );
-                if (picked != null) {
-                  setState(() => _idImage = File(picked.path));
-                }
+                await _uploadIdPhoto(ImageSource.camera);
               },
             ),
           ],
@@ -126,77 +119,93 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     );
   }
 
+  Future<void> _uploadIdPhoto(ImageSource source) async {
+    setState(() => _isUploadingId = true);
+    final picker = ImagePicker();
+    try {
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      if (picked != null) {
+        final api = ApiService();
+        final compressed = await api.compressImage(File(picked.path));
+        final relativePath = await api.uploadImage(compressed);
+        setState(() {
+          _idImage = File(picked.path);
+          _uploadedIdPath = relativePath;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ID photo uploaded'),
+            backgroundColor: SreaColors.buttonUpdate,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to upload ID photo'),
+          backgroundColor: SreaColors.error,
+        ),
+      );
+    } finally {
+      setState(() => _isUploadingId = false);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_barangay == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please select your barangay'),
-          backgroundColor: SreaColors.error,
-        ),
-      );
+      _showError('Please select your barangay');
       return;
     }
     if (_validIdType == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please select your valid ID type'),
-          backgroundColor: SreaColors.error,
-        ),
-      );
+      _showError('Please select your valid ID type');
       return;
     }
-    if (_idImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please upload a photo of your valid ID'),
-          backgroundColor: SreaColors.error,
-        ),
-      );
+    if (_uploadedIdPath == null) {
+      _showError('Please upload a photo of your valid ID');
       return;
     }
 
     setState(() => _isLoading = true);
 
-    // TODO: API call to save address and ID, then update user status to pending
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final api = ApiService();
+      await api.updateProfile({
+        'province': 'Bulacan',
+        'municipality': 'San Rafael',
+        'barangay': _barangay,
+        'street': _streetController.text.trim(),
+        'valid_id_type': _validIdType,
+        'valid_id_photo': _uploadedIdPath,
+      });
 
-    setState(() => _isLoading = false);
+      if (!mounted) return;
 
-    // Show success dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: SreaRadius.modal),
-        title: Text(
-          'Profile Submitted',
-          style: SreaText.titleLarge(
-            context,
-          ).copyWith(color: SreaColors.textPrimary),
-        ),
-        content: Text(
-          'Your address and ID have been submitted for verification. You will be notified once approved.',
-          style: SreaText.bodySmall(
-            context,
-          ).copyWith(color: SreaColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // close dialog
-              Navigator.pop(context); // back to home
-            },
-            child: Text(
-              'OK',
-              style: SreaText.bodySmall(context).copyWith(
-                color: SreaColors.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Profile completed! Your account is now pending verification.',
           ),
-        ],
-      ),
+          backgroundColor: SreaColors.buttonUpdate,
+        ),
+      );
+
+      Navigator.pop(context, true);
+    } catch (e) {
+      _showError('Failed to save profile. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: SreaColors.error),
     );
   }
 
@@ -235,6 +244,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 SreaTextField(
                   label: 'Province',
                   hint: 'Bulacan',
+                  controller: _provinceController,
                   enabled: false,
                 ),
                 const SizedBox(height: 16),
@@ -242,6 +252,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 SreaTextField(
                   label: 'Municipality',
                   hint: 'San Rafael',
+                  controller: _municipalityController,
                   enabled: false,
                 ),
                 const SizedBox(height: 16),
@@ -287,11 +298,34 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   hint: 'Tap to upload your ID',
                   selectedImage: _idImage,
                   onTap: _pickIdImage,
-                  onRemove: () => setState(() => _idImage = null),
+                  onRemove: () => setState(() {
+                    _idImage = null;
+                    _uploadedIdPath = null;
+                  }),
                 ),
+                if (_isUploadingId)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+                if (_uploadedIdPath != null && !_isUploadingId)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'ID uploaded successfully',
+                      style: SreaText.label(
+                        context,
+                      ).copyWith(color: SreaColors.low),
+                    ),
+                  ),
 
                 const SizedBox(height: 32),
-
                 SreaButton(
                   label: 'Submit for Verification',
                   onPressed: _submit,

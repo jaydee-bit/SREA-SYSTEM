@@ -71,7 +71,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'password_confirmation': _confirmPasswordController.text.trim(),
         'phone': _phoneController.text.trim(),
         'role': _residencyStatus,
-        'barangay': _isResident ? 'Poblacion' : null,
+        'barangay':
+            null, // FIXED: No default barangay. User will fill it later via Complete Profile.
       });
 
       if (!mounted) return;

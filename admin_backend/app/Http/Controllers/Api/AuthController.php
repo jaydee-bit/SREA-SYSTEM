@@ -22,7 +22,7 @@ class AuthController extends Controller
             'password' => 'required|string|min:6|confirmed',
             'phone' => 'nullable|string',
             'role' => 'sometimes|in:resident,non_resident',
-            'barangay' => 'required_if:role,resident|nullable|string',
+            'barangay' => 'nullable|string',   // ← CHANGED: not required, even for residents
         ]);
 
         $user = User::create([
@@ -117,11 +117,14 @@ class AuthController extends Controller
             'province' => $user->province,
             'municipality' => $user->municipality,
             'valid_id_photo' => $user->valid_id_photo,
-            'profile_image' => null,
+            'profile_image' => $user->profile_image,
+            'phone' => $user->phone,
+            'gender' => $user->gender,
+            'birth_date' => $user->birth_date,
         ]);
     }
 
-    // ==================== FORGOT PASSWORD (using default table) ====================
+    // ==================== FORGOT PASSWORD ====================
     public function forgotPassword(Request $request)
     {
         $request->validate(['email' => 'required|email']);

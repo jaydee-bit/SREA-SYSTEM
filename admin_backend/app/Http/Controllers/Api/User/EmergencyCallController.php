@@ -13,7 +13,7 @@ class EmergencyCallController extends Controller
         $request->validate([
             'location_lat' => 'required|numeric',
             'location_lng' => 'required|numeric',
-            'barangay' => 'required|string',
+            'barangay' => 'nullable|string',   // <-- changed to nullable
             'notes' => 'nullable|string',
         ]);
 
@@ -21,19 +21,11 @@ class EmergencyCallController extends Controller
             'user_id' => $request->user()->id,
             'location_lat' => $request->location_lat,
             'location_lng' => $request->location_lng,
-            'barangay' => $request->barangay,
-            'notes' => $request->notes,
+            'barangay' => $request->barangay ?? 'Unknown',
+            'notes' => $request->notes ?? 'Emergency call from SREA app',
             'status' => 'received',
         ]);
 
         return response()->json($call, 201);
-    }
-
-    public function myHistory(Request $request)
-    {
-        $calls = EmergencyCall::where('user_id', $request->user()->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
-        return response()->json($calls);
     }
 }

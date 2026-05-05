@@ -1,19 +1,56 @@
-// File: incident_report_detail_screen.dart
-// Path: mobile_user_app/lib/screens/incident_report_detail_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'dart:io';
 import '../models/incident_report_model.dart';
+import '../services/api_service.dart';
 
 class IncidentReportDetailScreen extends StatelessWidget {
   final IncidentReport report;
   const IncidentReportDetailScreen({super.key, required this.report});
 
+  String _getFullPhotoUrl() {
+    if (report.photoPath == null || report.photoPath!.isEmpty) return '';
+    if (report.photoPath!.startsWith('http')) return report.photoPath!;
+    return '${ApiService.baseImageUrl}${report.photoPath}';
+  }
+
+  void _showFullPhoto(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: InteractiveViewer(
+            panEnabled: true,
+            scaleEnabled: true,
+            minScale: 0.5,
+            maxScale: 4.0,
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Center(
+                child: Icon(Icons.broken_image, size: 60, color: Colors.white),
+              ),
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final fullPhotoUrl = _getFullPhotoUrl();
+
     return Scaffold(
       backgroundColor: SreaColors.background,
       appBar: AppBar(
@@ -39,18 +76,25 @@ class IncidentReportDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Status badge
-              Align(
-                alignment: Alignment.centerRight,
-                child: SreaBadge(
-                  type: _statusToBadgeType(report.status),
-                  label: report.status,
-                  showDot: true,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      report.type,
+                      style: SreaText.headlineSmall(
+                        context,
+                      ).copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  SreaBadge(
+                    type: _statusToBadgeType(report.status),
+                    label: report.status,
+                    showDot: true,
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-
-              // Reporter badge
+              const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -80,17 +124,6 @@ class IncidentReportDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-
-              // Incident type
-              Text(
-                report.type,
-                style: SreaText.headlineSmall(
-                  context,
-                ).copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 12),
-
-              // Location summary (barangay + details)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -121,8 +154,6 @@ class IncidentReportDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Date reported
               Row(
                 children: [
                   Icon(
@@ -140,8 +171,6 @@ class IncidentReportDetailScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
-
-              // Description
               Text(
                 'Description',
                 style: SreaText.bodyLarge(
@@ -155,8 +184,6 @@ class IncidentReportDetailScreen extends StatelessWidget {
                   context,
                 ).copyWith(color: SreaColors.textSecondary, height: 1.6),
               ),
-
-              // Persons involved (if any)
               if (report.personsInvolved != null) ...[
                 const SizedBox(height: 16),
                 Row(
@@ -176,9 +203,7 @@ class IncidentReportDetailScreen extends StatelessWidget {
                   ],
                 ),
               ],
-
-              // Photo (if any)
-              if (report.photoPath != null) ...[
+              if (fullPhotoUrl.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 Text(
                   'Photo',
@@ -187,20 +212,28 @@ class IncidentReportDetailScreen extends StatelessWidget {
                   ).copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(SreaRadius.md),
-                  child: Image.file(
-                    File(report.photoPath!),
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.broken_image, size: 100),
+                GestureDetector(
+                  onTap: () => _showFullPhoto(context, fullPhotoUrl),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(SreaRadius.md),
+                    child: Image.network(
+                      fullPhotoUrl,
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.broken_image,
+                        size: 100,
+                        color: SreaColors.textHint,
+                      ),
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                    ),
                   ),
                 ),
               ],
-
-              // Map preview
               const SizedBox(height: 20),
               Text(
                 'Location on Map',
@@ -219,12 +252,15 @@ class IncidentReportDetailScreen extends StatelessWidget {
                   options: MapOptions(
                     initialCenter: report.coordinates,
                     initialZoom: 15,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all,
+                    ),
                   ),
                   children: [
                     TileLayer(
                       urlTemplate:
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.mobile_user_app',
+                      userAgentPackageName: 'com.example.responder_app',
                     ),
                     MarkerLayer(
                       markers: [
@@ -251,8 +287,6 @@ class IncidentReportDetailScreen extends StatelessWidget {
                 ).copyWith(color: SreaColors.textHint),
                 textAlign: TextAlign.center,
               ),
-
-              // MDRRMO contact footer
               const SizedBox(height: 32),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -273,7 +307,7 @@ class IncidentReportDetailScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'For questions, contact MDRRMO',
+                            'For assistance, contact MDRRMO',
                             style: SreaText.bodySmall(context).copyWith(
                               fontWeight: FontWeight.w700,
                               color: SreaColors.primary,

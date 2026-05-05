@@ -2,15 +2,14 @@
 // Path: mobile_user_app/lib/widgets/srea_sidebar.dart
 
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'package:srea_shared/srea_shared.dart';
 import '../screens/about_screen.dart';
+import '../services/api_service.dart';
 
 class SreaSidebar extends StatelessWidget {
   final String userName;
   final String email;
-  final String
-  verificationStatus; // "Verified", "Pending Verification", "Unverified", "Non-Resident", or ""
+  final String verificationStatus;
   final String activeRoute;
   final void Function(String route) onNavigate;
   final VoidCallback onLogout;
@@ -27,8 +26,16 @@ class SreaSidebar extends StatelessWidget {
     this.profileImageUrl,
   });
 
+  // Helper – passes through ApiService.getFullImageUrl (handles both absolute & relative)
+  String? _getFullImageUrl() {
+    final api = ApiService();
+    return api.getFullImageUrl(profileImageUrl);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final fullImageUrl = _getFullImageUrl();
+
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.80,
       backgroundColor: SreaColors.primary,
@@ -46,7 +53,6 @@ class SreaSidebar extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Avatar
                   Container(
                     width: 72,
                     height: 72,
@@ -54,36 +60,23 @@ class SreaSidebar extends StatelessWidget {
                       color: SreaColors.surface,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.3),
+                        color: Colors.white.withOpacity(0.3),
                         width: 2,
                       ),
                     ),
                     child: ClipOval(
-                      child:
-                          profileImageUrl != null && profileImageUrl!.isNotEmpty
-                          ? (profileImageUrl!.startsWith('http')
-                                ? Image.network(
-                                    profileImageUrl!,
-                                    width: 72,
-                                    height: 72,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Icon(
-                                      Icons.person_outline_rounded,
-                                      size: 38,
-                                      color: SreaColors.primary,
-                                    ),
-                                  )
-                                : Image.file(
-                                    File(profileImageUrl!),
-                                    width: 72,
-                                    height: 72,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Icon(
-                                      Icons.person_outline_rounded,
-                                      size: 38,
-                                      color: SreaColors.primary,
-                                    ),
-                                  ))
+                      child: fullImageUrl != null && fullImageUrl.isNotEmpty
+                          ? Image.network(
+                              fullImageUrl,
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.person_outline_rounded,
+                                size: 38,
+                                color: SreaColors.primary,
+                              ),
+                            )
                           : const Icon(
                               Icons.person_outline_rounded,
                               size: 38,
@@ -111,7 +104,7 @@ class SreaSidebar extends StatelessWidget {
                 ],
               ),
             ),
-            Container(height: 1, color: Colors.white.withValues(alpha: 0.15)),
+            Container(height: 1, color: Colors.white.withOpacity(0.15)),
             SizedBox(height: SreaSpacing.sm(context)),
             Expanded(
               child: ListView(
@@ -161,10 +154,7 @@ class SreaSidebar extends StatelessWidget {
                     onTap: onNavigate,
                   ),
                   SizedBox(height: SreaSpacing.sm(context)),
-                  Container(
-                    height: 1,
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
+                  Container(height: 1, color: Colors.white.withOpacity(0.1)),
                   SizedBox(height: SreaSpacing.sm(context)),
                   _SidebarItem(
                     icon: Icons.privacy_tip_outlined,
@@ -185,7 +175,7 @@ class SreaSidebar extends StatelessWidget {
                 ],
               ),
             ),
-            Container(height: 1, color: Colors.white.withValues(alpha: 0.15)),
+            Container(height: 1, color: Colors.white.withOpacity(0.15)),
             Padding(
               padding: EdgeInsets.all(SreaSpacing.sm(context)),
               child: _SidebarLogoutButton(onLogout: onLogout),
@@ -210,19 +200,19 @@ class SreaSidebar extends StatelessWidget {
         label = 'Verified';
         break;
       case 'Pending Verification':
-        bgColor = Colors.white.withValues(alpha: 0.15);
+        bgColor = Colors.white.withOpacity(0.15);
         textColor = SreaColors.textOnPrimary;
         icon = Icons.pending_outlined;
         label = 'Pending Verification';
         break;
       case 'Unverified':
-        bgColor = Colors.white.withValues(alpha: 0.15);
+        bgColor = Colors.white.withOpacity(0.15);
         textColor = SreaColors.textOnPrimary;
         icon = Icons.error_outline_rounded;
         label = 'Unverified';
         break;
       case 'Non-Resident':
-        bgColor = Colors.white.withValues(alpha: 0.15);
+        bgColor = Colors.white.withOpacity(0.15);
         textColor = SreaColors.textOnPrimary;
         icon = Icons.location_city_outlined;
         label = 'Non-Resident';
@@ -240,7 +230,7 @@ class SreaSidebar extends StatelessWidget {
         color: bgColor,
         borderRadius: SreaRadius.pill,
         border: (verificationStatus != 'Verified')
-            ? Border.all(color: Colors.white.withValues(alpha: 0.3))
+            ? Border.all(color: Colors.white.withOpacity(0.3))
             : null,
       ),
       child: Row(
@@ -284,9 +274,7 @@ class _SidebarItem extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: SreaSpacing.xs(context)),
       child: Material(
-        color: _isActive
-            ? Colors.white.withValues(alpha: 0.15)
-            : Colors.transparent,
+        color: _isActive ? Colors.white.withOpacity(0.15) : Colors.transparent,
         borderRadius: SreaRadius.input,
         child: InkWell(
           onTap: () {
@@ -301,8 +289,8 @@ class _SidebarItem extends StatelessWidget {
             }
           },
           borderRadius: SreaRadius.input,
-          splashColor: Colors.white.withValues(alpha: 0.1),
-          highlightColor: Colors.white.withValues(alpha: 0.05),
+          splashColor: Colors.white.withOpacity(0.1),
+          highlightColor: Colors.white.withOpacity(0.05),
           child: Padding(
             padding: EdgeInsets.symmetric(
               horizontal: SreaSpacing.md(context),
@@ -362,7 +350,7 @@ class _SidebarLogoutButton extends StatelessWidget {
           onLogout();
         },
         borderRadius: SreaRadius.input,
-        splashColor: SreaColors.error.withValues(alpha: 0.2),
+        splashColor: SreaColors.error.withOpacity(0.2),
         child: Padding(
           padding: EdgeInsets.symmetric(
             horizontal: SreaSpacing.md(context),

@@ -1,5 +1,5 @@
 // File: profile_screen.dart
-// Path: mobile_user_app/lib/screens/profile_screen.dart
+// (replace with this full file)
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,10 +7,10 @@ import 'package:srea_shared/srea_shared.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'auth/login_screen.dart';
+import '../services/api_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Function(String?)? onProfileImageUpdated;
-
   const ProfileScreen({super.key, this.onProfileImageUpdated});
 
   @override
@@ -18,24 +18,9 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Mock user data – replace with API
-  final Map<String, dynamic> _user = {
-    'firstName': 'Leon',
-    'middleName': 'Scott',
-    'lastName': 'Kennedy',
-    'email': 'leon.kennedy@example.com',
-    'phone': '09123456789',
-    'gender': 'Male',
-    'birthDate': '1990-05-15',
-    'barangay': '',
-    'street': '',
-    'isVerified': false,
-    'role': 'resident',
-    'validIdType': '',
-    'validIdPhoto': null,
-    'profileImage': null,
-    'isProfileComplete': false,
-  };
+  Map<String, dynamic> _user = {};
+  bool _isLoading = true;
+  String? _error;
 
   late TextEditingController _firstNameController;
   late TextEditingController _middleNameController;
@@ -45,33 +30,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late TextEditingController _birthDateController;
 
   String? _selectedGender;
-  File? _profileImage;
+  String? _profileImageUrl;
 
   bool _isEditing = false;
-  bool _isLoading = false;
+  bool _isSaving = false;
   bool _isUploadingProfileImage = false;
 
   final List<String> _genderOptions = ['Male', 'Female', 'Prefer not to say'];
 
+  bool get _hasCompletedProfile {
+    if (_user['role'] != 'resident') return false;
+    return (_user['street']?.isNotEmpty == true) &&
+        (_user['province']?.isNotEmpty == true) &&
+        (_user['municipality']?.isNotEmpty == true) &&
+        (_user['valid_id_photo']?.isNotEmpty == true);
+  }
+
+  String get _verificationStatus {
+    if (_user['role'] != 'resident') return '';
+    if (!_hasCompletedProfile) return 'Unverified';
+    if (!(_user['is_verified'] ?? false)) return 'Pending Verification';
+    return 'Verified';
+  }
+
   @override
   void initState() {
     super.initState();
-    _initializeControllers();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final api = ApiService();
+      final user = await api.getUser();
+      final absoluteUrl = api.getFullImageUrl(user['profile_image']);
+      setState(() {
+        _user = user;
+        _profileImageUrl = absoluteUrl;
+        _initializeControllers();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load profile. Pull to refresh.';
+        _isLoading = false;
+      });
+    }
   }
 
   void _initializeControllers() {
-    _firstNameController = TextEditingController(text: _user['firstName']);
-    _middleNameController = TextEditingController(
-      text: _user['middleName'] ?? '',
+    final nameParts = (_user['name'] ?? '').split(' ');
+    _firstNameController = TextEditingController(
+      text: nameParts.isNotEmpty ? nameParts[0] : '',
     );
-    _lastNameController = TextEditingController(text: _user['lastName']);
-    _emailController = TextEditingController(text: _user['email']);
-    _phoneController = TextEditingController(text: _user['phone']);
-    _birthDateController = TextEditingController(text: _user['birthDate']);
+    _middleNameController = TextEditingController(
+      text: nameParts.length > 2 ? nameParts[1] : '',
+    );
+    _lastNameController = TextEditingController(
+      text: nameParts.length > 1 ? nameParts.last : '',
+    );
+    _emailController = TextEditingController(text: _user['email'] ?? '');
+    _phoneController = TextEditingController(text: _user['phone'] ?? '');
+    _birthDateController = TextEditingController(
+      text: _user['birth_date'] ?? '',
+    );
     _selectedGender = _user['gender'];
-    if (_user['profileImage'] != null && _user['profileImage'] is String) {
-      _profileImage = File(_user['profileImage']);
-    }
   }
 
   Future<void> _pickProfileImage() async {
@@ -91,7 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: const Text('Choose from Gallery'),
               onTap: () async {
                 Navigator.pop(context);
-                await _pickImage(ImageSource.gallery);
+                await _uploadImage(ImageSource.gallery);
               },
             ),
             ListTile(
@@ -99,7 +126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: const Text('Take a Photo'),
               onTap: () async {
                 Navigator.pop(context);
-                await _pickImage(ImageSource.camera);
+                await _uploadImage(ImageSource.camera);
               },
             ),
           ],
@@ -108,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  Future<void> _uploadImage(ImageSource source) async {
     setState(() => _isUploadingProfileImage = true);
     final picker = ImagePicker();
     try {
@@ -119,62 +146,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
         imageQuality: 80,
       );
       if (picked != null) {
-        setState(() => _profileImage = File(picked.path));
-        _user['profileImage'] = picked.path;
-        widget.onProfileImageUpdated?.call(picked.path);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Profile picture updated',
-                style: SreaText.bodySmall(
-                  context,
-                ).copyWith(color: Colors.white),
-              ),
-              backgroundColor: SreaColors.buttonUpdate,
-              duration: const Duration(seconds: 1),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
+        final api = ApiService();
+        final compressed = await api.compressImage(File(picked.path));
+
+        // Use the dedicated profile image endpoint – uploads to profile_images/,
+        // saves the absolute URL to the DB, and returns it directly.
+        final absoluteUrl = await api.uploadProfileImage(compressed);
+
+        setState(() {
+          _profileImageUrl = absoluteUrl;
+          _user = {..._user, 'profile_image': absoluteUrl};
+        });
+
+        // Notify HomeScreen so the sidebar updates immediately
+        widget.onProfileImageUpdated?.call(absoluteUrl);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Failed to update profile picture',
-              style: SreaText.bodySmall(context).copyWith(color: Colors.white),
-            ),
-            backgroundColor: SreaColors.error,
+            content: Text('Profile picture updated'),
+            backgroundColor: SreaColors.buttonUpdate,
           ),
         );
       }
+    } catch (e) {
+      print('Profile upload error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update profile picture'),
+          backgroundColor: SreaColors.error,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isUploadingProfileImage = false);
     }
   }
 
   Future<void> _saveChanges() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 1));
-    setState(() {
-      _isLoading = false;
-      _isEditing = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Profile updated successfully',
-          style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+    if (!_formValid()) return;
+    setState(() => _isSaving = true);
+    try {
+      final api = ApiService();
+      final fullName =
+          '${_firstNameController.text.trim()} ${_middleNameController.text.trim()} ${_lastNameController.text.trim()}'
+              .trim();
+      await api.updateProfile({
+        'name': fullName,
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'gender': _selectedGender,
+        'birth_date': _birthDateController.text.trim(),
+      });
+      final updatedUser = await api.getUser();
+      final absoluteUrl = api.getFullImageUrl(updatedUser['profile_image']);
+      setState(() {
+        _user = updatedUser;
+        _profileImageUrl = absoluteUrl;
+        _isEditing = false;
+        _isSaving = false;
+      });
+      widget.onProfileImageUpdated?.call(absoluteUrl);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Profile updated successfully'),
+          backgroundColor: SreaColors.buttonUpdate,
         ),
-        backgroundColor: SreaColors.buttonUpdate,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: SreaRadius.input),
-      ),
-    );
+      );
+    } catch (e) {
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update profile. Please try again.'),
+          backgroundColor: SreaColors.error,
+        ),
+      );
+    }
   }
 
+  bool _formValid() =>
+      _firstNameController.text.trim().isNotEmpty &&
+      _lastNameController.text.trim().isNotEmpty &&
+      _emailController.text.trim().isNotEmpty &&
+      _phoneController.text.trim().isNotEmpty;
+
   Future<void> _logout() async {
+    try {
+      await ApiService().logout();
+    } catch (_) {}
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -182,10 +239,152 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showChangePasswordDialog() {
+    final currentPassword = TextEditingController();
+    final newPassword = TextEditingController();
+    final confirmPassword = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: SreaRadius.modal),
+        title: Text(
+          'Change Password',
+          style: SreaText.titleLarge(
+            context,
+          ).copyWith(color: SreaColors.textPrimary),
+        ),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SreaPasswordField(
+                  label: 'Current Password',
+                  hint: 'Enter current password',
+                  controller: currentPassword,
+                  required: true,
+                  validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                ),
+                const SizedBox(height: 12),
+                SreaPasswordField(
+                  label: 'New Password',
+                  hint: 'Enter new password',
+                  controller: newPassword,
+                  required: true,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Required';
+                    if (v.length < 8) return 'Minimum 8 characters';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                SreaPasswordField(
+                  label: 'Confirm New Password',
+                  hint: 'Re-enter new password',
+                  controller: confirmPassword,
+                  required: true,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Required';
+                    if (v != newPassword.text) return 'Passwords do not match';
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: SreaText.bodySmall(
+                context,
+              ).copyWith(color: SreaColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Password changed successfully'),
+                    backgroundColor: SreaColors.buttonUpdate,
+                  ),
+                );
+              }
+            },
+            child: Text(
+              'Update',
+              style: SreaText.bodySmall(
+                context,
+              ).copyWith(color: SreaColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: SreaColors.background,
+        appBar: AppBar(
+          backgroundColor: SreaColors.primary,
+          elevation: 0,
+          title: Text(
+            'My Profile',
+            style: SreaText.titleLarge(
+              context,
+            ).copyWith(color: SreaColors.textOnPrimary),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: SreaColors.background,
+        appBar: AppBar(
+          backgroundColor: SreaColors.primary,
+          elevation: 0,
+          title: Text(
+            'My Profile',
+            style: SreaText.titleLarge(
+              context,
+            ).copyWith(color: SreaColors.textOnPrimary),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _error!,
+                style: SreaText.bodySmall(
+                  context,
+                ).copyWith(color: SreaColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadProfile,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final isResident = _user['role'] == 'resident';
-    final fullName = '${_firstNameController.text} ${_lastNameController.text}';
+    final fullName = '${_firstNameController.text} ${_lastNameController.text}'
+        .trim();
 
     return Scaffold(
       backgroundColor: SreaColors.background,
@@ -215,11 +414,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   context,
                 ).copyWith(color: SreaColors.textOnPrimary),
               ),
-            )
-          else
+            ),
+          if (_isEditing)
             TextButton(
               onPressed: _saveChanges,
-              child: _isLoading
+              child: _isSaving
                   ? const SizedBox(
                       width: 20,
                       height: 20,
@@ -237,15 +436,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
         ],
       ),
-      body: SafeArea(
+      body: RefreshIndicator(
+        onRefresh: _loadProfile,
         child: SingleChildScrollView(
           child: Column(
             children: [
               _ProfileHeader(
                 userName: fullName,
                 email: _emailController.text,
-                isVerified: _user['isVerified'],
-                profileImage: _profileImage,
+                verificationStatus: _verificationStatus,
+                imageUrl: _profileImageUrl,
                 isUploading: _isUploadingProfileImage,
                 onImageTap: _pickProfileImage,
               ),
@@ -371,28 +571,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const Divider(height: 1, color: SreaColors.divider),
                             _ReadOnlyField(
                               label: 'Barangay',
-                              value: _user['barangay'].isEmpty
-                                  ? 'Not set'
-                                  : _user['barangay'],
+                              value: _user['barangay']?.isNotEmpty == true
+                                  ? _user['barangay']
+                                  : 'Not set',
                             ),
                             const Divider(height: 1, color: SreaColors.divider),
                             _ReadOnlyField(
                               label: 'Street',
-                              value: _user['street'].isEmpty
-                                  ? 'Not set'
-                                  : _user['street'],
+                              value: _user['street']?.isNotEmpty == true
+                                  ? _user['street']
+                                  : 'Not set',
                             ),
                             const Divider(height: 1, color: SreaColors.divider),
                             _ReadOnlyField(
                               label: 'Valid ID Type',
-                              value: _user['validIdType'].isEmpty
-                                  ? 'Not set'
-                                  : _user['validIdType'],
+                              value: _user['valid_id_type']?.isNotEmpty == true
+                                  ? _user['valid_id_type']
+                                  : 'Not set',
                             ),
                             const Divider(height: 1, color: SreaColors.divider),
                             _ReadOnlyField(
                               label: 'ID Photo',
-                              value: _user['validIdPhoto'] != null
+                              value: _user['valid_id_photo'] != null
                                   ? 'Uploaded'
                                   : 'Not uploaded',
                             ),
@@ -426,116 +626,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
-  void _showChangePasswordDialog() {
-    final currentPassword = TextEditingController();
-    final newPassword = TextEditingController();
-    final confirmPassword = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: SreaRadius.modal),
-        title: Text(
-          'Change Password',
-          style: SreaText.titleLarge(
-            context,
-          ).copyWith(color: SreaColors.textPrimary),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SreaPasswordField(
-                label: 'Current Password',
-                hint: 'Enter current password',
-                controller: currentPassword,
-                required: true,
-                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 12),
-              SreaPasswordField(
-                label: 'New Password',
-                hint: 'Enter new password',
-                controller: newPassword,
-                required: true,
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Required';
-                  if (v.length < 8) return 'Minimum 8 characters';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              SreaPasswordField(
-                label: 'Confirm New Password',
-                hint: 'Re-enter new password',
-                controller: confirmPassword,
-                required: true,
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Required';
-                  if (v != newPassword.text) return 'Passwords do not match';
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: SreaText.bodySmall(
-                context,
-              ).copyWith(color: SreaColors.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context);
-                // TODO: API call to change password
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Password changed successfully',
-                      style: SreaText.bodySmall(
-                        context,
-                      ).copyWith(color: Colors.white),
-                    ),
-                    backgroundColor: SreaColors.buttonUpdate,
-                  ),
-                );
-              }
-            },
-            child: Text(
-              'Update',
-              style: SreaText.bodySmall(
-                context,
-              ).copyWith(color: SreaColors.primary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-// ─── Blue header ───────────────────────────────────────────
+// ─── Helper widgets ─────────────────────────────────────────
 class _ProfileHeader extends StatelessWidget {
   final String userName;
   final String email;
-  final bool isVerified;
-  final File? profileImage;
+  final String verificationStatus;
+  final String? imageUrl;
   final bool isUploading;
   final VoidCallback onImageTap;
-
   const _ProfileHeader({
     required this.userName,
     required this.email,
-    required this.isVerified,
-    required this.profileImage,
+    required this.verificationStatus,
+    this.imageUrl,
     required this.isUploading,
     required this.onImageTap,
   });
@@ -570,17 +675,22 @@ class _ProfileHeader extends StatelessWidget {
                     color: SreaColors.surface,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
+                      color: Colors.white.withOpacity(0.3),
                       width: 2,
                     ),
                   ),
                   child: ClipOval(
-                    child: profileImage != null
-                        ? Image.file(
-                            profileImage!,
+                    child: imageUrl != null && imageUrl!.isNotEmpty
+                        ? Image.network(
+                            imageUrl!,
                             width: 80,
                             height: 80,
                             fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.person_outline_rounded,
+                              size: 44,
+                              color: SreaColors.primary,
+                            ),
                           )
                         : const Icon(
                             Icons.person_outline_rounded,
@@ -592,7 +702,7 @@ class _ProfileHeader extends StatelessWidget {
                 if (isUploading)
                   Positioned.fill(
                     child: Container(
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: Colors.black54,
                         shape: BoxShape.circle,
                       ),
@@ -646,70 +756,68 @@ class _ProfileHeader extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
-          if (isVerified)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: SreaRadius.pill,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.verified_rounded,
-                    size: 14,
-                    color: SreaColors.primary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Verified Account',
-                    style: SreaText.label(context).copyWith(
-                      color: SreaColors.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                borderRadius: SreaRadius.pill,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.pending_outlined,
-                    size: 14,
-                    color: SreaColors.textOnPrimary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Pending Verification',
-                    style: SreaText.label(context).copyWith(
-                      color: SreaColors.textOnPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          _buildStatusBadge(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(BuildContext context) {
+    Color bgColor;
+    Color textColor;
+    IconData icon;
+    String label;
+    switch (verificationStatus) {
+      case 'Verified':
+        bgColor = Colors.white;
+        textColor = SreaColors.primary;
+        icon = Icons.verified_rounded;
+        label = 'Verified Account';
+        break;
+      case 'Pending Verification':
+        bgColor = Colors.white.withOpacity(0.15);
+        textColor = SreaColors.textOnPrimary;
+        icon = Icons.pending_outlined;
+        label = 'Pending Verification';
+        break;
+      case 'Unverified':
+        bgColor = Colors.white.withOpacity(0.15);
+        textColor = SreaColors.textOnPrimary;
+        icon = Icons.error_outline_rounded;
+        label = 'Unverified';
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: SreaRadius.pill,
+        border: verificationStatus != 'Verified'
+            ? Border.all(color: Colors.white.withOpacity(0.3))
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: textColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: SreaText.label(
+              context,
+            ).copyWith(color: textColor, fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );
   }
 }
 
-// ─── Helper widgets ─────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String title;
   const _SectionHeader({required this.title});
-
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -740,7 +848,6 @@ class _ProfileField extends StatelessWidget {
   final bool isEditing;
   final Function(String) onEdit;
   final Widget child;
-
   const _ProfileField({
     required this.label,
     required this.value,
@@ -748,7 +855,6 @@ class _ProfileField extends StatelessWidget {
     required this.onEdit,
     required this.child,
   });
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -786,7 +892,6 @@ class _ReadOnlyField extends StatelessWidget {
   final String label;
   final String value;
   const _ReadOnlyField({required this.label, required this.value});
-
   @override
   Widget build(BuildContext context) {
     return Padding(

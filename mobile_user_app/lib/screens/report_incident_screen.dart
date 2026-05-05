@@ -8,6 +8,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/incident_report_model.dart';
+import '../services/api_service.dart';
 import 'incident_report_detail_screen.dart';
 
 class ReportIncidentScreen extends StatefulWidget {
@@ -36,13 +37,75 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
 
-  // TODO: Replace with actual user data from auth service
   final String _reporterRole = 'resident';
   final bool _reporterIsVerified = false;
 
-  // ==================== SAN RAFAEL BARANGAY POLYGONS ====================
-  // All coordinates converted from GeoJSON (longitude, latitude) -> LatLng(latitude, longitude)
+  final List<String> _barangayOptions = [
+    'Banca-Banca',
+    'BMA – Balagtas',
+    'Caingin',
+    'Capihan',
+    'Coral na Bato',
+    'Cruz na Daan',
+    'Dagat-Dagatan',
+    'Diliman I',
+    'Diliman II',
+    'Libis',
+    'Lico',
+    'Maasim',
+    'Mabalas-Balas',
+    'Maguinao',
+    'Maronquillo',
+    'Paco',
+    'Pansumaloc',
+    'Pantubig',
+    'Pasong Bangkal',
+    'Pasong Callos',
+    'Pasong Intsik',
+    'Pinacpinacan',
+    'Poblacion',
+    'Pulo',
+    'Pulong Bayabas',
+    'Salapungan',
+    'Sampaloc',
+    'San Agustin',
+    'San Roque',
+    'Sapang Pahalang',
+    'Talacsan',
+    'Tambubong',
+    'Tukod',
+    'Ulingao',
+  ];
+
+  // ✂️ PASTE YOUR FULL _barangayPolygons LIST HERE ✂️
+  // Ensure the order matches _barangayOptions.
   static final List<List<LatLng>> _barangayPolygons = [
+    // Banca-banca (PH031422002)
+    [
+      const LatLng(15.024296569000057, 120.92787576600006),
+      const LatLng(15.023197932000073, 120.92680450300008),
+      const LatLng(15.020282548000068, 120.92528892400003),
+      const LatLng(15.018637719000026, 120.925658085),
+      const LatLng(15.016652246000035, 120.92692389100011),
+      const LatLng(15.016298276000043, 120.92327593000005),
+      const LatLng(15.015802520000022, 120.92061158500007),
+      const LatLng(15.016113695000058, 120.91936633900002),
+      const LatLng(15.016082710000035, 120.91556480700001),
+      const LatLng(15.015684350000072, 120.9140863880001),
+      const LatLng(15.023365212000044, 120.91105603100004),
+      const LatLng(15.022824139000022, 120.91190376400004),
+      const LatLng(15.02361056500007, 120.91350564100003),
+      const LatLng(15.024651363000032, 120.91376209600003),
+      const LatLng(15.026475095000023, 120.91559949300006),
+      const LatLng(15.027810861000034, 120.9182710230001),
+      const LatLng(15.027516992000074, 120.9198739420001),
+      const LatLng(15.028484651000042, 120.92115573800004),
+      const LatLng(15.025499851000063, 120.92412956500004),
+      const LatLng(15.029052473000036, 120.9256471970001),
+      const LatLng(15.029193747000022, 120.92622798500008),
+      const LatLng(15.025998266000045, 120.92758801800005),
+      const LatLng(15.024296569000057, 120.92787576600006),
+    ],
     // BMA-Balagtas (ADM4_PCODE: PH031422001)
     [
       const LatLng(14.977561915000024, 120.97389226700011),
@@ -75,32 +138,6 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       const LatLng(14.976531903000023, 120.9655427780001),
       const LatLng(14.981085782000036, 120.96678000600002),
       const LatLng(14.977561915000024, 120.97389226700011),
-    ],
-    // Banca-banca (PH031422002)
-    [
-      const LatLng(15.024296569000057, 120.92787576600006),
-      const LatLng(15.023197932000073, 120.92680450300008),
-      const LatLng(15.020282548000068, 120.92528892400003),
-      const LatLng(15.018637719000026, 120.925658085),
-      const LatLng(15.016652246000035, 120.92692389100011),
-      const LatLng(15.016298276000043, 120.92327593000005),
-      const LatLng(15.015802520000022, 120.92061158500007),
-      const LatLng(15.016113695000058, 120.91936633900002),
-      const LatLng(15.016082710000035, 120.91556480700001),
-      const LatLng(15.015684350000072, 120.9140863880001),
-      const LatLng(15.023365212000044, 120.91105603100004),
-      const LatLng(15.022824139000022, 120.91190376400004),
-      const LatLng(15.02361056500007, 120.91350564100003),
-      const LatLng(15.024651363000032, 120.91376209600003),
-      const LatLng(15.026475095000023, 120.91559949300006),
-      const LatLng(15.027810861000034, 120.9182710230001),
-      const LatLng(15.027516992000074, 120.9198739420001),
-      const LatLng(15.028484651000042, 120.92115573800004),
-      const LatLng(15.025499851000063, 120.92412956500004),
-      const LatLng(15.029052473000036, 120.9256471970001),
-      const LatLng(15.029193747000022, 120.92622798500008),
-      const LatLng(15.025998266000045, 120.92758801800005),
-      const LatLng(15.024296569000057, 120.92787576600006),
     ],
     // Caingin (PH031422003)
     [
@@ -154,6 +191,37 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       const LatLng(15.000479220000045, 120.95734835000007),
       const LatLng(14.996739601000058, 120.95818854200002),
       const LatLng(14.996189048000076, 120.9607429030001),
+    ],
+    // Capihan (PH031422009)
+    [
+      const LatLng(15.001929437000058, 120.94775240900003),
+      const LatLng(15.000556295000024, 120.946621391),
+      const LatLng(14.990868551000062, 120.9400516930001),
+      const LatLng(14.98653620600004, 120.9368277210001),
+      const LatLng(14.990394215000038, 120.9331561670001),
+      const LatLng(14.990909782000074, 120.9311483240001),
+      const LatLng(14.990427158000045, 120.92887703300005),
+      const LatLng(14.990964983000026, 120.92528720500002),
+      const LatLng(14.98867451500007, 120.9250152840001),
+      const LatLng(14.989410282000051, 120.9238998620001),
+      const LatLng(14.993337413000063, 120.92348067400007),
+      const LatLng(14.993288071000052, 120.9228070580001),
+      const LatLng(14.99795270800007, 120.91977001400005),
+      const LatLng(15.002045833000068, 120.91832084600003),
+      const LatLng(15.00246158300007, 120.92051315600008),
+      const LatLng(15.003676682000048, 120.92181931200003),
+      const LatLng(15.00362932400003, 120.9258544490001),
+      const LatLng(15.004858906000038, 120.9277372040001),
+      const LatLng(15.003004813000075, 120.92851080500009),
+      const LatLng(15.002822533000028, 120.93050041600009),
+      const LatLng(15.004186510000068, 120.93353820000004),
+      const LatLng(15.00376041100003, 120.93579043700004),
+      const LatLng(15.004102188000047, 120.93818216700004),
+      const LatLng(15.001692640000044, 120.94080857400002),
+      const LatLng(15.000439675000052, 120.94121819700001),
+      const LatLng(15.002013910000073, 120.94411904700007),
+      const LatLng(15.002690943000061, 120.94626540500008),
+      const LatLng(15.001929437000058, 120.94775240900003),
     ],
     // Coral na Bato (PH031422004)
     [
@@ -235,29 +303,29 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     ],
     // Dagat-dagatan (PH031422006)
     [
-      const LatLng(15.03545213700005, 120.92536029200005),
-      const LatLng(15.033171701000072, 120.92861576000007),
-      const LatLng(15.031903371000055, 120.92920271100002),
-      const LatLng(15.031920816000024, 120.92738346200008),
-      const LatLng(15.030096137000044, 120.92236593400003),
-      const LatLng(15.028484651000042, 120.92115573800004),
-      const LatLng(15.027516992000074, 120.9198739420001),
-      const LatLng(15.027810861000034, 120.9182710230001),
-      const LatLng(15.026475095000023, 120.91559949300006),
-      const LatLng(15.024651363000032, 120.91376209600003),
-      const LatLng(15.027591018000066, 120.91235377400005),
-      const LatLng(15.029442526000025, 120.91268524200007),
-      const LatLng(15.030964552000057, 120.911942672),
-      const LatLng(15.032311909000043, 120.9127458270001),
-      const LatLng(15.034560421000037, 120.91171771000006),
-      const LatLng(15.037010250000037, 120.91249670500008),
-      const LatLng(15.038132046000044, 120.91594417700003),
-      const LatLng(15.03996522600005, 120.91588945500007),
-      const LatLng(15.040102030000071, 120.91750374800006),
-      const LatLng(15.038925512000048, 120.92067761100009),
-      const LatLng(15.037631858000054, 120.92110054300008),
-      const LatLng(15.036806563000027, 120.92392291600004),
-      const LatLng(15.03545213700005, 120.92536029200005),
+    const LatLng(15.03545213700005, 120.92536029200005),
+    const LatLng(15.033171701000072, 120.92861576000007),
+    const LatLng(15.031903371000055, 120.92920271100002),
+    const LatLng(15.031920816000024, 120.92738346200008),
+    const LatLng(15.030096137000044, 120.92236593400003),
+    const LatLng(15.028484651000042, 120.92115573800004),
+    const LatLng(15.027516992000074, 120.9198739420001),
+    const LatLng(15.027810861000034, 120.9182710230001),
+    const LatLng(15.026475095000023, 120.91559949300006),
+    const LatLng(15.024651363000032, 120.91376209600003),
+    const LatLng(15.027591018000066, 120.91235377400005),
+    const LatLng(15.029442526000025, 120.91268524200007),
+    const LatLng(15.030964552000057, 120.911942672),
+    const LatLng(15.032311909000043, 120.9127458270001),
+    const LatLng(15.034560421000037, 120.91171771000006),
+    const LatLng(15.037010250000037, 120.91249670500008),
+    const LatLng(15.038132046000044, 120.91594417700003),
+    const LatLng(15.03996522600005, 120.91588945500007),
+    const LatLng(15.040102030000071, 120.91750374800006),
+    const LatLng(15.038925512000048, 120.92067761100009),
+    const LatLng(15.037631858000054, 120.92110054300008),
+    const LatLng(15.036806563000027, 120.92392291600004),
+    const LatLng(15.03545213700005, 120.92536029200005),
     ],
     // Diliman I (PH031422007)
     [
@@ -316,37 +384,6 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       const LatLng(15.034059771000045, 120.95810570200001),
       const LatLng(15.032212730000026, 120.95768566600009),
       const LatLng(15.030516525000053, 120.95987627200009),
-    ],
-    // Capihan (PH031422009)
-    [
-      const LatLng(15.001929437000058, 120.94775240900003),
-      const LatLng(15.000556295000024, 120.946621391),
-      const LatLng(14.990868551000062, 120.9400516930001),
-      const LatLng(14.98653620600004, 120.9368277210001),
-      const LatLng(14.990394215000038, 120.9331561670001),
-      const LatLng(14.990909782000074, 120.9311483240001),
-      const LatLng(14.990427158000045, 120.92887703300005),
-      const LatLng(14.990964983000026, 120.92528720500002),
-      const LatLng(14.98867451500007, 120.9250152840001),
-      const LatLng(14.989410282000051, 120.9238998620001),
-      const LatLng(14.993337413000063, 120.92348067400007),
-      const LatLng(14.993288071000052, 120.9228070580001),
-      const LatLng(14.99795270800007, 120.91977001400005),
-      const LatLng(15.002045833000068, 120.91832084600003),
-      const LatLng(15.00246158300007, 120.92051315600008),
-      const LatLng(15.003676682000048, 120.92181931200003),
-      const LatLng(15.00362932400003, 120.9258544490001),
-      const LatLng(15.004858906000038, 120.9277372040001),
-      const LatLng(15.003004813000075, 120.92851080500009),
-      const LatLng(15.002822533000028, 120.93050041600009),
-      const LatLng(15.004186510000068, 120.93353820000004),
-      const LatLng(15.00376041100003, 120.93579043700004),
-      const LatLng(15.004102188000047, 120.93818216700004),
-      const LatLng(15.001692640000044, 120.94080857400002),
-      const LatLng(15.000439675000052, 120.94121819700001),
-      const LatLng(15.002013910000073, 120.94411904700007),
-      const LatLng(15.002690943000061, 120.94626540500008),
-      const LatLng(15.001929437000058, 120.94775240900003),
     ],
     // Libis (PH031422010)
     [
@@ -993,6 +1030,42 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       const LatLng(15.012194967000028, 120.94805994900003),
       const LatLng(15.011861750000037, 120.94905527300011),
     ],
+    // Sapang Pahalang (PH031422035)
+    [
+      const LatLng(15.002301573000068, 121.04099867200011),
+      const LatLng(15.001199489000044, 121.041430708),
+      const LatLng(15.001014188000056, 121.0430428200001),
+      const LatLng(14.999723263000021, 121.04366048700001),
+      const LatLng(14.998024678000036, 121.04254868600003),
+      const LatLng(14.994219846000021, 121.0433145940001),
+      const LatLng(14.993046278000065, 121.04407432500011),
+      const LatLng(14.99121692500006, 121.04375266700004),
+      const LatLng(14.988863803000072, 121.03912957700004),
+      const LatLng(14.988327483000035, 121.03704227700007),
+      const LatLng(14.985800187000052, 121.03373942600001),
+      const LatLng(14.981663441000023, 121.03304097400007),
+      const LatLng(14.98430354800007, 121.03215151200004),
+      const LatLng(14.984620082000049, 121.03146771000002),
+      const LatLng(14.988472393000052, 121.03203393700005),
+      const LatLng(14.98957204100003, 121.03355542700001),
+      const LatLng(14.991276313000071, 121.03261917700002),
+      const LatLng(14.992410355000061, 121.03032451600006),
+      const LatLng(14.99475456500005, 121.02965614300001),
+      const LatLng(14.993207116000065, 121.02766789600003),
+      const LatLng(14.993949377000035, 121.02603889200009),
+      const LatLng(14.994234490000053, 121.02701092000007),
+      const LatLng(14.996566340000072, 121.02844816400011),
+      const LatLng(14.997271424000076, 121.02971329600007),
+      const LatLng(14.997263931000077, 121.03157159600005),
+      const LatLng(14.998732587000063, 121.03233589600006),
+      const LatLng(15.00004388700006, 121.03178889700007),
+      const LatLng(15.001924666000036, 121.03382703200009),
+      const LatLng(15.003123569000024, 121.03299529300011),
+      const LatLng(15.004135143000042, 121.03368466200004),
+      const LatLng(15.001939652000033, 121.03549800200005),
+      const LatLng(15.003678061000073, 121.03920710800003),
+      const LatLng(15.002301573000068, 121.04099867200011),
+    ],
     // Talacsan (PH031422031)
     [
       const LatLng(14.989770402000033, 120.98647994700002),
@@ -1156,45 +1229,11 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       const LatLng(14.989836952000076, 120.91213871000002),
       const LatLng(14.987612371000068, 120.91292727000007),
     ],
-    // Sapang Pahalang (PH031422035)
-    [
-      const LatLng(15.002301573000068, 121.04099867200011),
-      const LatLng(15.001199489000044, 121.041430708),
-      const LatLng(15.001014188000056, 121.0430428200001),
-      const LatLng(14.999723263000021, 121.04366048700001),
-      const LatLng(14.998024678000036, 121.04254868600003),
-      const LatLng(14.994219846000021, 121.0433145940001),
-      const LatLng(14.993046278000065, 121.04407432500011),
-      const LatLng(14.99121692500006, 121.04375266700004),
-      const LatLng(14.988863803000072, 121.03912957700004),
-      const LatLng(14.988327483000035, 121.03704227700007),
-      const LatLng(14.985800187000052, 121.03373942600001),
-      const LatLng(14.981663441000023, 121.03304097400007),
-      const LatLng(14.98430354800007, 121.03215151200004),
-      const LatLng(14.984620082000049, 121.03146771000002),
-      const LatLng(14.988472393000052, 121.03203393700005),
-      const LatLng(14.98957204100003, 121.03355542700001),
-      const LatLng(14.991276313000071, 121.03261917700002),
-      const LatLng(14.992410355000061, 121.03032451600006),
-      const LatLng(14.99475456500005, 121.02965614300001),
-      const LatLng(14.993207116000065, 121.02766789600003),
-      const LatLng(14.993949377000035, 121.02603889200009),
-      const LatLng(14.994234490000053, 121.02701092000007),
-      const LatLng(14.996566340000072, 121.02844816400011),
-      const LatLng(14.997271424000076, 121.02971329600007),
-      const LatLng(14.997263931000077, 121.03157159600005),
-      const LatLng(14.998732587000063, 121.03233589600006),
-      const LatLng(15.00004388700006, 121.03178889700007),
-      const LatLng(15.001924666000036, 121.03382703200009),
-      const LatLng(15.003123569000024, 121.03299529300011),
-      const LatLng(15.004135143000042, 121.03368466200004),
-      const LatLng(15.001939652000033, 121.03549800200005),
-      const LatLng(15.003678061000073, 121.03920710800003),
-      const LatLng(15.002301573000068, 121.04099867200011),
-    ],
+
+
+
   ];
 
-  // ==================== GEOMETRY UTILITIES ====================
   bool _isPointInPolygon(LatLng point, List<LatLng> polygon) {
     bool inside = false;
     for (int i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -1211,6 +1250,16 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     return inside;
   }
 
+  // Find barangay using polygon data (accurate)
+  String? _findBarangayByCoordinates(LatLng point) {
+    for (int i = 0; i < _barangayPolygons.length; i++) {
+      if (_isPointInPolygon(point, _barangayPolygons[i])) {
+        return _barangayOptions[i];
+      }
+    }
+    return null;
+  }
+
   bool get _isWithinSanRafael =>
       _selectedLatLng != null &&
       _barangayPolygons.any(
@@ -1225,42 +1274,6 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     'Storm Damage',
     'Medical Emergency',
     'Other',
-  ];
-  final List<String> _barangayOptions = [
-    'Banca-Banca',
-    'BMA – Balagtas',
-    'Caingin',
-    'Capihan',
-    'Coral na Bato',
-    'Cruz na Daan',
-    'Dagat-Dagatan',
-    'Diliman I',
-    'Diliman II',
-    'Libis',
-    'Lico',
-    'Maasim',
-    'Mabalas-Balas',
-    'Maguinao',
-    'Maronquillo',
-    'Paco',
-    'Pansumaloc',
-    'Pantubig',
-    'Pasong Bangkal',
-    'Pasong Callos',
-    'Pasong Intsik',
-    'Pinacpinacan',
-    'Poblacion',
-    'Pulo',
-    'Pulong Bayabas',
-    'Salapungan',
-    'Sampaloc',
-    'San Agustin',
-    'San Roque',
-    'Sapang Pahalang',
-    'Talacsan',
-    'Tambubong',
-    'Tukod',
-    'Ulingao',
   ];
 
   final List<String> _typesRequiringPersons = [
@@ -1283,23 +1296,6 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     super.dispose();
   }
 
-  String? _findMatchingBarangay(String detected) {
-    if (detected.isEmpty) return null;
-    final cleaned = detected.trim().toLowerCase().replaceAll(
-      RegExp(r'^(barangay|brgy\.?)\s+'),
-      '',
-    );
-    for (final option in _barangayOptions) {
-      if (option.toLowerCase() == cleaned) return option;
-    }
-    for (final option in _barangayOptions) {
-      if (cleaned.contains(option.toLowerCase()) ||
-          option.toLowerCase().contains(cleaned))
-        return option;
-    }
-    return null;
-  }
-
   Future<void> _updateAddressFromLatLng(LatLng latLng) async {
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(
@@ -1311,11 +1307,17 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         String address =
             '${place.street ?? ''} ${place.subLocality ?? ''} ${place.locality ?? ''} ${place.postalCode ?? ''}'
                 .trim();
-        if (address.isEmpty) address = 'Unknown location';
-        setState(() => _selectedAddress = address);
-        String detectedBarangay = place.subLocality ?? place.locality ?? '';
-        final matched = _findMatchingBarangay(detectedBarangay);
-        if (matched != null) setState(() => _barangay = matched);
+        setState(
+          () =>
+              _selectedAddress = address.isEmpty ? 'Unknown location' : address,
+        );
+
+        // ✅ Use polygon-based barangay detection (accurate)
+        final matchedBarangay = _findBarangayByCoordinates(latLng);
+        if (matchedBarangay != null) {
+          setState(() => _barangay = matchedBarangay);
+        }
+
         if (place.street != null && place.street!.isNotEmpty) {
           setState(() => _locationDetailsController.text = place.street!);
         }
@@ -1351,9 +1353,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       }
     }
     if (permission == LocationPermission.deniedForever) {
-      _showError(
-        'Location permissions permanently denied. Please enable from settings.',
-      );
+      _showError('Location permissions permanently denied.');
       setState(() => _isFetchingLocation = false);
       return;
     }
@@ -1362,9 +1362,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         desiredAccuracy: LocationAccuracy.high,
       );
       final latLng = LatLng(position.latitude, position.longitude);
-      setState(() {
-        _selectedLatLng = latLng;
-      });
+      setState(() => _selectedLatLng = latLng);
       await _updateAddressFromLatLng(latLng);
     } catch (e) {
       _showError('Failed to get location: $e');
@@ -1467,9 +1465,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       return;
     }
     if (!_isWithinSanRafael) {
-      _showError(
-        'Incident location is outside San Rafael, Bulacan. Only incidents within the municipality can be reported.',
-      );
+      _showError('Incident location is outside San Rafael, Bulacan.');
       return;
     }
     int? persons;
@@ -1481,31 +1477,60 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
       }
     }
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-    if (!mounted) return;
 
-    final newReport = IncidentReport(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      type: _incidentType!,
-      description: _descriptionController.text,
-      photoPath: _photo?.path,
-      barangay: _barangay!,
-      locationDetails: _locationDetailsController.text,
-      coordinates: _selectedLatLng!,
-      address: _selectedAddress,
-      status: 'Pending',
-      reportedAt: DateTime.now(),
-      personsInvolved: persons,
-      reporterRole: _reporterRole,
-      reporterIsVerified: _reporterIsVerified,
-    );
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => IncidentReportDetailScreen(report: newReport),
-      ),
-    );
+    try {
+      final api = ApiService();
+      String? photoPath;
+      if (_photo != null) {
+        final compressed = await api.compressImage(_photo!);
+        photoPath = await api.uploadImage(compressed);
+      }
+
+      final Map<String, dynamic> requestData = {
+        'type': _incidentType!,
+        'description': _descriptionController.text,
+        'barangay': _barangay!,
+        'location_details': _locationDetailsController.text,
+        'latitude': _selectedLatLng!.latitude,
+        'longitude': _selectedLatLng!.longitude,
+        'address': _selectedAddress,
+      };
+      if (persons != null) requestData['persons_involved'] = persons;
+      if (photoPath != null) requestData['photo_path'] = photoPath;
+
+      final newIncident = await api.createIncident(requestData);
+
+      final report = IncidentReport(
+        id: newIncident['id'].toString(),
+        type: newIncident['type'],
+        description: newIncident['description'],
+        photoPath: newIncident['photo_path'],
+        barangay: newIncident['barangay'],
+        locationDetails: newIncident['location_details'],
+        coordinates: LatLng(
+          double.parse(newIncident['latitude'].toString()),
+          double.parse(newIncident['longitude'].toString()),
+        ),
+        address: newIncident['address'],
+        status: newIncident['status'],
+        reportedAt: DateTime.parse(newIncident['reported_at']),
+        personsInvolved: newIncident['persons_involved'],
+        reporterRole: _reporterRole,
+        reporterIsVerified: _reporterIsVerified,
+      );
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => IncidentReportDetailScreen(report: report),
+        ),
+      );
+    } catch (e) {
+      print('Submission error: $e');
+      _showError('Failed to submit report. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -1537,7 +1562,6 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Warning for unverified users
                 if (!_reporterIsVerified)
                   Container(
                     margin: const EdgeInsets.only(bottom: 16),
@@ -1546,7 +1570,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                       color: SreaColors.mediumBg,
                       borderRadius: SreaRadius.card,
                       border: Border.all(
-                        color: SreaColors.medium.withValues(alpha: 0.4),
+                        color: SreaColors.medium.withOpacity(0.4),
                       ),
                     ),
                     child: Row(
@@ -1568,7 +1592,6 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                       ],
                     ),
                   ),
-                // Geofence warning if selected location is outside
                 if (_selectedLatLng != null && !_isWithinSanRafael)
                   Container(
                     margin: const EdgeInsets.only(bottom: 16),
@@ -1577,7 +1600,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                       color: SreaColors.criticalBg,
                       borderRadius: SreaRadius.card,
                       border: Border.all(
-                        color: SreaColors.critical.withValues(alpha: 0.4),
+                        color: SreaColors.critical.withOpacity(0.4),
                       ),
                     ),
                     child: Row(
