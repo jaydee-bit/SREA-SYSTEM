@@ -4,14 +4,19 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:cross_file/cross_file.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // optional fallback
 
 class ApiService {
   static const String baseImageUrl = 'http://localhost:8080';
   static const String baseUrl = '$baseImageUrl/api';
 
-  final Dio _dio = Dio(BaseOptions(baseUrl: baseUrl));
-  // Explicit Android options for better persistence
+  final Dio _dio = Dio(
+    BaseOptions(
+      baseUrl: baseUrl,
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  );
+
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
@@ -21,9 +26,6 @@ class ApiService {
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           final token = await _storage.read(key: 'auth_token');
-          print(
-            '📦 Token from secure storage: ${token != null ? 'Exists' : 'NULL'}',
-          );
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
           }
@@ -32,7 +34,6 @@ class ApiService {
         },
         onError: (error, handler) async {
           if (error.response?.statusCode == 401) {
-            print('⚠️ 401 Unauthorized – clearing token');
             await _storage.delete(key: 'auth_token');
           }
           return handler.next(error);
@@ -49,10 +50,7 @@ class ApiService {
         data: {'email': email, 'password': password, 'client_type': 'user'},
       );
       final token = response.data['token'];
-      if (token != null) {
-        await _storage.write(key: 'auth_token', value: token);
-        print('🔐 Token saved after login');
-      }
+      await _storage.write(key: 'auth_token', value: token);
       return response.data;
     } catch (e) {
       rethrow;
@@ -64,7 +62,6 @@ class ApiService {
       await _dio.post('/auth/logout');
     } finally {
       await _storage.delete(key: 'auth_token');
-      print('🗑️ Token deleted on logout');
     }
   }
 
@@ -78,7 +75,6 @@ class ApiService {
     final token = response.data['token'];
     if (token != null) {
       await _storage.write(key: 'auth_token', value: token);
-      print('🔐 Token saved after registration');
     }
     return response.data;
   }
@@ -109,7 +105,6 @@ class ApiService {
     return response.data;
   }
 
-  // Dedicated profile picture upload – returns absolute URL
   Future<String> uploadProfileImage(File imageFile) async {
     String fileName = DateTime.now().millisecondsSinceEpoch.toString() + '.jpg';
     FormData formData = FormData.fromMap({
@@ -122,7 +117,6 @@ class ApiService {
     return response.data['profile_image'];
   }
 
-  // Generic image upload for incidents (returns relative path)
   Future<String> uploadImage(File imageFile) async {
     String fileName = DateTime.now().millisecondsSinceEpoch.toString() + '.jpg';
     FormData formData = FormData.fromMap({
@@ -132,12 +126,34 @@ class ApiService {
     return response.data['photo_path'];
   }
 
-  // Helper – convert relative path to absolute URL
   String? getFullImageUrl(String? path) {
     if (path == null || path.isEmpty) return null;
     if (path.startsWith('http')) return path;
     final normalizedPath = path.startsWith('/') ? path : '/$path';
     return '$baseImageUrl$normalizedPath';
+  }
+
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    try {
+      await _dio.post(
+        '/user/change-password',
+        data: {
+          'current_password': currentPassword,
+          'new_password': newPassword,
+          'new_password_confirmation': newPassword,
+        },
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 422) {
+        throw Exception(
+          e.response?.data['message'] ?? 'Current password is incorrect.',
+        );
+      }
+      throw Exception('Network error. Please check your connection.');
+    }
   }
 
   // ==================== INCIDENTS ====================
@@ -187,6 +203,16 @@ class ApiService {
 
   Future<List<dynamic>> getTrafficAdvisories() async {
     final response = await _dio.get('/user/traffic');
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> getAnnouncement(int id) async {
+    final response = await _dio.get('/user/announcements/$id');
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> getTrafficAdvisory(int id) async {
+    final response = await _dio.get('/user/traffic/$id');
     return response.data;
   }
 

@@ -1,9 +1,10 @@
 // File: profile_screen.dart
-// (replace with this full file)
+// (full file with floating snackbars and clear on dispose)
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:srea_shared/srea_shared.dart';
+import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'auth/login_screen.dart';
@@ -11,7 +12,12 @@ import '../services/api_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Function(String?)? onProfileImageUpdated;
-  const ProfileScreen({super.key, this.onProfileImageUpdated});
+  final VoidCallback? onRefreshNeeded;
+  const ProfileScreen({
+    super.key,
+    this.onProfileImageUpdated,
+    this.onRefreshNeeded,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -38,6 +44,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   final List<String> _genderOptions = ['Male', 'Female', 'Prefer not to say'];
 
+  String _formatDateForDisplay(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return 'Not set';
+    try {
+      final DateTime date = DateTime.parse(isoDate);
+      return DateFormat('MMMM d, yyyy').format(date);
+    } catch (e) {
+      return 'Not set';
+    }
+  }
+
+  String? _getDateOnlyForSave(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return null;
+    try {
+      final DateTime date = DateTime.parse(isoDate);
+      return DateFormat('yyyy-MM-dd').format(date);
+    } catch (e) {
+      return null;
+    }
+  }
+
   bool get _hasCompletedProfile {
     if (_user['role'] != 'resident') return false;
     return (_user['street']?.isNotEmpty == true) &&
@@ -59,6 +85,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadProfile();
   }
 
+  @override
+  void dispose() {
+    // Clear any lingering snackbars to prevent FAB movement when returning to home
+    ScaffoldMessenger.of(context).clearSnackBars();
+    _firstNameController.dispose();
+    _middleNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _birthDateController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadProfile() async {
     setState(() {
       _isLoading = true;
@@ -67,10 +106,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final api = ApiService();
       final user = await api.getUser();
-      final absoluteUrl = api.getFullImageUrl(user['profile_image']);
       setState(() {
         _user = user;
-        _profileImageUrl = absoluteUrl;
+        _profileImageUrl = user['profile_image'];
         _initializeControllers();
         _isLoading = false;
       });
@@ -83,16 +121,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _initializeControllers() {
-    final nameParts = (_user['name'] ?? '').split(' ');
-    _firstNameController = TextEditingController(
-      text: nameParts.isNotEmpty ? nameParts[0] : '',
-    );
-    _middleNameController = TextEditingController(
-      text: nameParts.length > 2 ? nameParts[1] : '',
-    );
-    _lastNameController = TextEditingController(
-      text: nameParts.length > 1 ? nameParts.last : '',
-    );
+    final nameParts = (_user['name'] ?? '').trim().split(' ');
+    String firstName = '';
+    String middleName = '';
+    String lastName = '';
+    if (nameParts.isNotEmpty) {
+      firstName = nameParts.first;
+      lastName = nameParts.last;
+      if (nameParts.length > 2) {
+        middleName = nameParts.sublist(1, nameParts.length - 1).join(' ');
+      }
+    }
+    _firstNameController = TextEditingController(text: firstName);
+    _middleNameController = TextEditingController(text: middleName);
+    _lastNameController = TextEditingController(text: lastName);
     _emailController = TextEditingController(text: _user['email'] ?? '');
     _phoneController = TextEditingController(text: _user['phone'] ?? '');
     _birthDateController = TextEditingController(
@@ -148,32 +190,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (picked != null) {
         final api = ApiService();
         final compressed = await api.compressImage(File(picked.path));
-
-        // Use the dedicated profile image endpoint – uploads to profile_images/,
-        // saves the absolute URL to the DB, and returns it directly.
-        final absoluteUrl = await api.uploadProfileImage(compressed);
-
+        final imageUrl = await api.uploadProfileImage(compressed);
         setState(() {
-          _profileImageUrl = absoluteUrl;
-          _user = {..._user, 'profile_image': absoluteUrl};
+          _profileImageUrl = imageUrl;
         });
-
-        // Notify HomeScreen so the sidebar updates immediately
-        widget.onProfileImageUpdated?.call(absoluteUrl);
-
+        widget.onProfileImageUpdated?.call(imageUrl);
+        final updatedUser = await api.getUser();
+        setState(() {
+          _user = updatedUser;
+          _profileImageUrl = updatedUser['profile_image'];
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Profile picture updated'),
             backgroundColor: SreaColors.buttonUpdate,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
     } catch (e) {
-      print('Profile upload error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to update profile picture'),
           backgroundColor: SreaColors.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } finally {
@@ -186,29 +226,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isSaving = true);
     try {
       final api = ApiService();
-      final fullName =
-          '${_firstNameController.text.trim()} ${_middleNameController.text.trim()} ${_lastNameController.text.trim()}'
-              .trim();
-      await api.updateProfile({
+      String fullName = _firstNameController.text.trim();
+      if (_middleNameController.text.trim().isNotEmpty) {
+        fullName += ' ${_middleNameController.text.trim()}';
+      }
+      fullName += ' ${_lastNameController.text.trim()}';
+
+      final Map<String, dynamic> updateData = {
         'name': fullName,
         'email': _emailController.text.trim(),
         'phone': _phoneController.text.trim(),
         'gender': _selectedGender,
-        'birth_date': _birthDateController.text.trim(),
-      });
+      };
+      if (_birthDateController.text.trim().isNotEmpty) {
+        final dateOnly = _getDateOnlyForSave(_birthDateController.text);
+        if (dateOnly != null) updateData['birth_date'] = dateOnly;
+      }
+
+      await api.updateProfile(updateData);
       final updatedUser = await api.getUser();
-      final absoluteUrl = api.getFullImageUrl(updatedUser['profile_image']);
       setState(() {
         _user = updatedUser;
-        _profileImageUrl = absoluteUrl;
+        _profileImageUrl = updatedUser['profile_image'];
+        _initializeControllers();
         _isEditing = false;
         _isSaving = false;
       });
-      widget.onProfileImageUpdated?.call(absoluteUrl);
+      widget.onProfileImageUpdated?.call(_profileImageUrl);
+      widget.onRefreshNeeded?.call();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Profile updated successfully'),
           backgroundColor: SreaColors.buttonUpdate,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
@@ -217,6 +267,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         SnackBar(
           content: Text('Failed to update profile. Please try again.'),
           backgroundColor: SreaColors.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -230,7 +281,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _logout() async {
     try {
-      await ApiService().logout();
+      final api = ApiService();
+      await api.logout();
     } catch (_) {}
     Navigator.pushAndRemoveUntil(
       context,
@@ -239,94 +291,171 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _selectBirthDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _birthDateController.text.isNotEmpty
+          ? DateTime.parse(_birthDateController.text)
+          : DateTime.now().subtract(const Duration(days: 365 * 18)),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: SreaColors.primary,
+              onPrimary: SreaColors.textOnPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _birthDateController.text = picked.toIso8601String().split('T').first;
+      });
+      if (_isEditing) await _saveChanges();
+    }
+  }
+
   void _showChangePasswordDialog() {
-    final currentPassword = TextEditingController();
-    final newPassword = TextEditingController();
-    final confirmPassword = TextEditingController();
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: SreaRadius.modal),
-        title: Text(
-          'Change Password',
-          style: SreaText.titleLarge(
-            context,
-          ).copyWith(color: SreaColors.textPrimary),
-        ),
-        content: SingleChildScrollView(
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SreaPasswordField(
-                  label: 'Current Password',
-                  hint: 'Enter current password',
-                  controller: currentPassword,
-                  required: true,
-                  validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+      barrierDismissible: false,
+      builder: (context) {
+        bool isLoading = false;
+        String? errorMessage;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            void _changePassword() async {
+              if (!formKey.currentState!.validate()) return;
+              setDialogState(() {
+                isLoading = true;
+                errorMessage = null;
+              });
+              try {
+                final api = ApiService();
+                await api.changePassword(
+                  currentPasswordController.text.trim(),
+                  newPasswordController.text.trim(),
+                );
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Password changed successfully'),
+                      backgroundColor: SreaColors.buttonUpdate,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                setDialogState(() {
+                  isLoading = false;
+                  errorMessage = e.toString().replaceFirst('Exception: ', '');
+                });
+              }
+            }
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: SreaRadius.modal),
+              title: Text(
+                'Change Password',
+                style: SreaText.titleLarge(
+                  context,
+                ).copyWith(color: SreaColors.textPrimary),
+              ),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SreaPasswordField(
+                        label: 'Current Password',
+                        hint: 'Enter current password',
+                        controller: currentPasswordController,
+                        required: true,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      SreaPasswordField(
+                        label: 'New Password',
+                        hint: 'Enter new password (min. 8 characters)',
+                        controller: newPasswordController,
+                        required: true,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Required';
+                          if (v.length < 8) return 'Minimum 8 characters';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      SreaPasswordField(
+                        label: 'Confirm New Password',
+                        hint: 'Re-enter new password',
+                        controller: confirmPasswordController,
+                        required: true,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Required';
+                          if (v != newPasswordController.text)
+                            return 'Passwords do not match';
+                          return null;
+                        },
+                      ),
+                      if (errorMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Text(
+                            errorMessage!,
+                            style: const TextStyle(
+                              color: SreaColors.error,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                SreaPasswordField(
-                  label: 'New Password',
-                  hint: 'Enter new password',
-                  controller: newPassword,
-                  required: true,
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Required';
-                    if (v.length < 8) return 'Minimum 8 characters';
-                    return null;
-                  },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading ? null : () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: SreaText.bodySmall(
+                      context,
+                    ).copyWith(color: SreaColors.textSecondary),
+                  ),
                 ),
-                const SizedBox(height: 12),
-                SreaPasswordField(
-                  label: 'Confirm New Password',
-                  hint: 'Re-enter new password',
-                  controller: confirmPassword,
-                  required: true,
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Required';
-                    if (v != newPassword.text) return 'Passwords do not match';
-                    return null;
-                  },
+                TextButton(
+                  onPressed: isLoading ? null : _changePassword,
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          'Update',
+                          style: SreaText.bodySmall(
+                            context,
+                          ).copyWith(color: SreaColors.primary),
+                        ),
                 ),
               ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: SreaText.bodySmall(
-                context,
-              ).copyWith(color: SreaColors.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Password changed successfully'),
-                    backgroundColor: SreaColors.buttonUpdate,
-                  ),
-                );
-              }
-            },
-            child: Text(
-              'Update',
-              style: SreaText.bodySmall(
-                context,
-              ).copyWith(color: SreaColors.primary),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -385,6 +514,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isResident = _user['role'] == 'resident';
     final fullName = '${_firstNameController.text} ${_lastNameController.text}'
         .trim();
+    final displayBirthDate = _formatDateForDisplay(_birthDateController.text);
+    final idPhotoUrl =
+        _user['valid_id_photo'] != null && _user['valid_id_photo'].isNotEmpty
+        ? ApiService().getFullImageUrl(_user['valid_id_photo'])
+        : null;
 
     return Scaffold(
       backgroundColor: SreaColors.background,
@@ -414,8 +548,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   context,
                 ).copyWith(color: SreaColors.textOnPrimary),
               ),
-            ),
-          if (_isEditing)
+            )
+          else
             TextButton(
               onPressed: _saveChanges,
               child: _isSaving
@@ -511,9 +645,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const Divider(height: 1, color: SreaColors.divider),
                           _ReadOnlyField(
                             label: 'Birth Date',
-                            value: _birthDateController.text.isEmpty
-                                ? 'Not set'
-                                : _birthDateController.text,
+                            value: displayBirthDate,
+                            onTap: _isEditing ? _selectBirthDate : null,
                           ),
                         ],
                       ),
@@ -562,11 +695,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       SreaCard(
                         child: Column(
                           children: [
-                            _ReadOnlyField(label: 'Province', value: 'Bulacan'),
+                            _ReadOnlyField(
+                              label: 'Province',
+                              value: _user['province']?.isNotEmpty == true
+                                  ? _user['province']
+                                  : 'Not set',
+                            ),
                             const Divider(height: 1, color: SreaColors.divider),
                             _ReadOnlyField(
                               label: 'Municipality',
-                              value: 'San Rafael',
+                              value: _user['municipality']?.isNotEmpty == true
+                                  ? _user['municipality']
+                                  : 'Not set',
                             ),
                             const Divider(height: 1, color: SreaColors.divider),
                             _ReadOnlyField(
@@ -590,11 +730,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   : 'Not set',
                             ),
                             const Divider(height: 1, color: SreaColors.divider),
-                            _ReadOnlyField(
+                            _ReadOnlyIdPhotoField(
                               label: 'ID Photo',
-                              value: _user['valid_id_photo'] != null
-                                  ? 'Uploaded'
-                                  : 'Not uploaded',
+                              photoUrl: idPhotoUrl,
                             ),
                           ],
                         ),
@@ -604,7 +742,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     if (!_isEditing)
                       SreaButton.outline(
                         label: 'Change Password',
-                        onPressed: () => _showChangePasswordDialog(),
+                        onPressed: _showChangePasswordDialog,
                         fullWidth: true,
                         icon: Icons.lock_outline_rounded,
                       ),
@@ -628,7 +766,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ─── Helper widgets ─────────────────────────────────────────
+// ─── Helper widgets (unchanged) ───
 class _ProfileHeader extends StatelessWidget {
   final String userName;
   final String email;
@@ -675,7 +813,7 @@ class _ProfileHeader extends StatelessWidget {
                     color: SreaColors.surface,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       width: 2,
                     ),
                   ),
@@ -775,13 +913,13 @@ class _ProfileHeader extends StatelessWidget {
         label = 'Verified Account';
         break;
       case 'Pending Verification':
-        bgColor = Colors.white.withOpacity(0.15);
+        bgColor = Colors.white.withValues(alpha: 0.15);
         textColor = SreaColors.textOnPrimary;
         icon = Icons.pending_outlined;
         label = 'Pending Verification';
         break;
       case 'Unverified':
-        bgColor = Colors.white.withOpacity(0.15);
+        bgColor = Colors.white.withValues(alpha: 0.15);
         textColor = SreaColors.textOnPrimary;
         icon = Icons.error_outline_rounded;
         label = 'Unverified';
@@ -795,7 +933,7 @@ class _ProfileHeader extends StatelessWidget {
         color: bgColor,
         borderRadius: SreaRadius.pill,
         border: verificationStatus != 'Verified'
-            ? Border.all(color: Colors.white.withOpacity(0.3))
+            ? Border.all(color: Colors.white.withValues(alpha: 0.3))
             : null,
       ),
       child: Row(
@@ -891,12 +1029,54 @@ class _ProfileField extends StatelessWidget {
 class _ReadOnlyField extends StatelessWidget {
   final String label;
   final String value;
-  const _ReadOnlyField({required this.label, required this.value});
+  final VoidCallback? onTap;
+  const _ReadOnlyField({required this.label, required this.value, this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text(
+                label,
+                style: SreaText.label(
+                  context,
+                ).copyWith(color: SreaColors.textSecondary),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                value,
+                style: SreaText.bodySmall(
+                  context,
+                ).copyWith(color: SreaColors.textPrimary),
+              ),
+            ),
+            if (onTap != null)
+              const Icon(Icons.edit, size: 16, color: SreaColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReadOnlyIdPhotoField extends StatelessWidget {
+  final String label;
+  final String? photoUrl;
+  const _ReadOnlyIdPhotoField({required this.label, this.photoUrl});
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 100,
@@ -909,12 +1089,52 @@ class _ReadOnlyField extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              value,
-              style: SreaText.bodySmall(
-                context,
-              ).copyWith(color: SreaColors.textPrimary),
-            ),
+            child: photoUrl != null && photoUrl!.isNotEmpty
+                ? GestureDetector(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => Dialog(
+                          backgroundColor: Colors.black,
+                          insetPadding: EdgeInsets.zero,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: InteractiveViewer(
+                              panEnabled: true,
+                              scaleEnabled: true,
+                              child: Image.network(
+                                photoUrl!,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.broken_image,
+                                  size: 60,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(SreaRadius.sm),
+                      child: Image.network(
+                        photoUrl!,
+                        height: 80,
+                        width: 80,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.broken_image,
+                          size: 40,
+                          color: SreaColors.textHint,
+                        ),
+                      ),
+                    ),
+                  )
+                : const Text(
+                    'Not uploaded',
+                    style: TextStyle(color: SreaColors.textSecondary),
+                  ),
           ),
         ],
       ),

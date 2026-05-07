@@ -33,6 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/upload-profile-image', [App\Http\Controllers\Api\UserController::class, 'uploadProfileImage']);
     Route::get('/user/profile', [App\Http\Controllers\Api\UserController::class, 'profile']);
     Route::put('/user/profile', [App\Http\Controllers\Api\UserController::class, 'update']);
+    Route::post('/user/change-password', [App\Http\Controllers\Api\UserController::class, 'changePassword']);
 
 
     // ==================== RESPONDER APP ENDPOINTS ====================
