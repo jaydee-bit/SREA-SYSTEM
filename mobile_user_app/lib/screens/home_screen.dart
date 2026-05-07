@@ -102,7 +102,6 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final api = ApiService();
 
-      // Load user profile – this must succeed
       final user = await api.getUser();
       setState(() {
         _userName = user['name'] ?? '';
@@ -117,7 +116,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _profileImageUrl = user['profile_image'];
       });
 
-      // Load alerts – if it fails, keep empty list
       try {
         final alerts = await api.getAlerts();
         setState(() => _alerts = alerts);
@@ -126,7 +124,6 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() => _alerts = []);
       }
 
-      // Load announcements – if it fails, keep empty list
       try {
         final announcements = await api.getAnnouncements();
         setState(() => _announcements = announcements);
@@ -135,7 +132,6 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() => _announcements = []);
       }
 
-      // Load traffic advisories – if it fails, keep empty list
       try {
         final traffic = await api.getTrafficAdvisories();
         setState(() => _traffic = traffic);
@@ -146,7 +142,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() => _isLoading = false);
 
-      // Show welcome banner after data loads the first time
       if (!_hasShownWelcome && _userName.isNotEmpty) {
         setState(() => _hasShownWelcome = true);
         Future.delayed(const Duration(seconds: 5), () {
@@ -154,6 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() => _hasShownWelcome = false);
           }
         });
+        
       }
     } catch (e) {
       setState(() {
@@ -194,8 +190,10 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                ProfileScreen(onProfileImageUpdated: _updateProfileImage),
+            builder: (_) => ProfileScreen(
+              onProfileImageUpdated: _updateProfileImage,
+              onRefreshNeeded: _loadData,
+            ),
           ),
         ).then((_) => setState(() => _currentIndex = 0));
         break;
@@ -208,8 +206,10 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                ProfileScreen(onProfileImageUpdated: _updateProfileImage),
+            builder: (_) => ProfileScreen(
+              onProfileImageUpdated: _updateProfileImage,
+              onRefreshNeeded: _loadData,
+            ),
           ),
         ).then((_) => setState(() => _currentIndex = 0));
         break;
@@ -244,7 +244,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // LOGOUT WITH CLEAN STYLED DIALOG
   Future<void> _onLogout() async {
     showDialog(
       context: context,
@@ -279,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final api = ApiService();
       await api.logout();
       if (mounted) {
-        Navigator.of(context).pop(); // close dialog
+        Navigator.of(context).pop();
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -288,11 +287,12 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); // close dialog
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Logout failed. Please try again.'),
             backgroundColor: SreaColors.error,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -344,7 +344,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Compute verification status for sidebar
     String verificationStatus = '';
     if (_role == 'resident') {
       if (!_hasCompletedProfile) {
@@ -358,10 +357,8 @@ class _HomeScreenState extends State<HomeScreen> {
       verificationStatus = 'Non-Resident';
     }
 
-    // Build recent updates from combined API data
     final List<Map<String, dynamic>> recentUpdates = [];
 
-    // Add alerts (up to 2)
     for (var alert in _alerts.take(2)) {
       recentUpdates.add({
         'type': 'alert',
@@ -373,7 +370,6 @@ class _HomeScreenState extends State<HomeScreen> {
         'icon': Icons.warning_amber_rounded,
       });
     }
-    // Add announcements (up to 2)
     for (var ann in _announcements.take(2)) {
       recentUpdates.add({
         'type': 'announcement',
@@ -385,7 +381,6 @@ class _HomeScreenState extends State<HomeScreen> {
         'icon': Icons.campaign_outlined,
       });
     }
-    // Add traffic (up to 2)
     for (var traffic in _traffic.take(2)) {
       recentUpdates.add({
         'type': 'traffic',
@@ -397,7 +392,6 @@ class _HomeScreenState extends State<HomeScreen> {
         'icon': Icons.traffic_outlined,
       });
     }
-    // Sort by time descending (most recent first)
     recentUpdates.sort((a, b) => b['time'].compareTo(a['time']));
 
     final bool hasActiveAlert = _alerts.isNotEmpty;
@@ -442,7 +436,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           : const SreaAllClearBanner(),
                       const SizedBox(height: 20),
 
-                      // Banner logic: only for residents
                       if (_role == 'resident') ...[
                         if (!_hasCompletedProfile)
                           _CompleteProfileBanner(onComplete: _loadData),

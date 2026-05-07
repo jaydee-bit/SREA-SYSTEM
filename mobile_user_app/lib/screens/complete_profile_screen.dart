@@ -25,7 +25,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   File? _idImage;
   String? _uploadedIdPath;
 
-  // Controllers for default province and municipality
   final _provinceController = TextEditingController(text: 'Bulacan');
   final _municipalityController = TextEditingController(text: 'San Rafael');
 
@@ -192,6 +191,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
             'Profile completed! Your account is now pending verification.',
           ),
           backgroundColor: SreaColors.buttonUpdate,
+          behavior: SnackBarBehavior.floating,
         ),
       );
 

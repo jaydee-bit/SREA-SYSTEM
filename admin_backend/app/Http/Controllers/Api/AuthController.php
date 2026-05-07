@@ -22,7 +22,7 @@ class AuthController extends Controller
             'password' => 'required|string|min:6|confirmed',
             'phone' => 'nullable|string',
             'role' => 'sometimes|in:resident,non_resident',
-            'barangay' => 'nullable|string',   // ← CHANGED: not required, even for residents
+            'barangay' => 'nullable|string',   // not required
         ]);
 
         $user = User::create([
@@ -38,7 +38,7 @@ class AuthController extends Controller
         $token = $user->createToken('mobile-token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Registration successful. Please wait for admin verification.',
+            'message' => 'Registration successful.',
             'token' => $token,
             'user' => [
                 'id' => $user->id,
@@ -102,7 +102,7 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logged out']);
     }
 
-    // ==================== USER PROFILE (with profile fields) ====================
+    // ==================== USER PROFILE (with all fields) ====================
     public function user(Request $request)
     {
         $user = $request->user();
@@ -117,6 +117,7 @@ class AuthController extends Controller
             'province' => $user->province,
             'municipality' => $user->municipality,
             'valid_id_photo' => $user->valid_id_photo,
+            'valid_id_type' => $user->valid_id_type,   // ✅ ADDED
             'profile_image' => $user->profile_image,
             'phone' => $user->phone,
             'gender' => $user->gender,
@@ -124,7 +125,7 @@ class AuthController extends Controller
         ]);
     }
 
-    // ==================== FORGOT PASSWORD ====================
+    // ==================== FORGOT PASSWORD (using default table) ====================
     public function forgotPassword(Request $request)
     {
         $request->validate(['email' => 'required|email']);
@@ -134,7 +135,6 @@ class AuthController extends Controller
             return response()->json(['message' => 'We cannot find a user with that email.'], 404);
         }
 
-        // Delete old tokens for this email
         DB::table('password_reset_tokens')->where('email', $request->email)->delete();
 
         $token = Str::random(60);
@@ -167,7 +167,6 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid token.'], 400);
         }
 
-        // Check if token is older than 60 minutes
         if (now()->diffInMinutes($reset->created_at) > 60) {
             return response()->json(['message' => 'Token expired.'], 400);
         }
@@ -193,7 +192,6 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid or expired token.'], 400);
         }
 
-        // Check expiration
         if (now()->diffInMinutes($reset->created_at) > 60) {
             return response()->json(['message' => 'Token expired.'], 400);
         }
@@ -206,10 +204,7 @@ class AuthController extends Controller
         $user->password = Hash::make($request->password);
         $user->save();
 
-        // Delete the used token
         DB::table('password_reset_tokens')->where('email', $request->email)->delete();
-
-        // Optionally revoke all existing tokens
         $user->tokens()->delete();
 
         return response()->json(['message' => 'Password reset successfully.']);
