@@ -10,6 +10,36 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
 
   const TrafficAdvisoryDetailScreen({super.key, required this.advisory});
 
+  String _formatDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  String _formatDateRange() {
+    if (advisory.effectiveFrom == null && advisory.effectiveTo == null)
+      return '';
+    if (advisory.effectiveFrom != null && advisory.effectiveTo == null) {
+      return 'From ${_formatDate(advisory.effectiveFrom!)}';
+    }
+    if (advisory.effectiveFrom == null && advisory.effectiveTo != null) {
+      return 'Until ${_formatDate(advisory.effectiveTo!)}';
+    }
+    return '${_formatDate(advisory.effectiveFrom!)} – ${_formatDate(advisory.effectiveTo!)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -18,12 +48,17 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
         backgroundColor: SreaColors.primary,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: SreaColors.textOnPrimary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: SreaColors.textOnPrimary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Traffic Advisory',
-          style: SreaText.titleLarge(context).copyWith(color: SreaColors.textOnPrimary),
+          style: SreaText.titleLarge(
+            context,
+          ).copyWith(color: SreaColors.textOnPrimary),
         ),
       ),
       body: SafeArea(
@@ -32,7 +67,6 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title
               Text(
                 advisory.title,
                 style: SreaText.headlineSmall(context).copyWith(
@@ -41,39 +75,49 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              // Severity badge
               Row(
                 children: [
                   SreaBadge(
                     type: advisory.severity,
-                    label: advisory.severity.name[0].toUpperCase() + advisory.severity.name.substring(1),
+                    label: advisory.severity.name.toUpperCase(),
                     showDot: true,
                   ),
                   const Spacer(),
-                  // Date posted
                   Row(
                     children: [
-                      Icon(Icons.calendar_today_outlined, size: 14, color: SreaColors.textHint),
+                      Icon(
+                        Icons.calendar_today_outlined,
+                        size: 14,
+                        color: SreaColors.textHint,
+                      ),
                       const SizedBox(width: 4),
                       Text(
-                        advisory.formattedDate,
-                        style: SreaText.bodySmall(context).copyWith(color: SreaColors.textHint),
+                        _formatDate(advisory.publishedAt),
+                        style: SreaText.bodySmall(
+                          context,
+                        ).copyWith(color: SreaColors.textHint),
                       ),
                     ],
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              // Location
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: SreaColors.primaryLight,
                   borderRadius: SreaRadius.input,
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.location_on_outlined, size: 16, color: SreaColors.primary),
+                    Icon(
+                      Icons.location_on_outlined,
+                      size: 16,
+                      color: SreaColors.primary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -87,25 +131,31 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              // Effective date range (if any)
-              if (advisory.effectiveDateRange.isNotEmpty) ...[
+              if (_formatDateRange().isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: SreaColors.surfaceVariant,
                     borderRadius: SreaRadius.input,
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.schedule_outlined, size: 16, color: SreaColors.textSecondary),
+                      Icon(
+                        Icons.schedule_outlined,
+                        size: 16,
+                        color: SreaColors.textSecondary,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          advisory.effectiveDateRange,
-                          style: SreaText.bodySmall(context).copyWith(
-                            color: SreaColors.textSecondary,
-                          ),
+                          _formatDateRange(),
+                          style: SreaText.bodySmall(
+                            context,
+                          ).copyWith(color: SreaColors.textSecondary),
                         ),
                       ),
                     ],
@@ -113,16 +163,13 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 20),
-              // Description
               Text(
                 advisory.description,
-                style: SreaText.bodyLarge(context).copyWith(
-                  color: SreaColors.textPrimary,
-                  height: 1.6,
-                ),
+                style: SreaText.bodyLarge(
+                  context,
+                ).copyWith(color: SreaColors.textPrimary, height: 1.6),
               ),
               const SizedBox(height: 24),
-              // Mock Map Preview (future improvement)
               Container(
                 decoration: BoxDecoration(
                   color: SreaColors.primaryLight,
@@ -136,16 +183,14 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
                         topLeft: Radius.circular(12),
                         topRight: Radius.circular(12),
                       ),
-                      child: Image.asset(
-                        'assets/images/map_placeholder.png', // placeholder image; replace later
+                      child: Container(
                         height: 180,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          height: 180,
-                          color: SreaColors.primaryLight,
-                          child: const Center(
-                            child: Icon(Icons.map_outlined, size: 48, color: SreaColors.primary),
+                        color: SreaColors.primaryLight,
+                        child: const Center(
+                          child: Icon(
+                            Icons.map_outlined,
+                            size: 48,
+                            color: SreaColors.primary,
                           ),
                         ),
                       ),
@@ -154,7 +199,11 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
                       padding: const EdgeInsets.all(12),
                       child: Row(
                         children: [
-                          const Icon(Icons.location_on_rounded, size: 16, color: SreaColors.primary),
+                          const Icon(
+                            Icons.location_on_rounded,
+                            size: 16,
+                            color: SreaColors.primary,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -172,7 +221,6 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-              // MDRRMO contact footer
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -181,7 +229,11 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.phone_in_talk_rounded, size: 20, color: SreaColors.primary),
+                    const Icon(
+                      Icons.phone_in_talk_rounded,
+                      size: 20,
+                      color: SreaColors.primary,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -196,7 +248,9 @@ class TrafficAdvisoryDetailScreen extends StatelessWidget {
                           ),
                           Text(
                             '(044) 123-4567',
-                            style: SreaText.label(context).copyWith(color: SreaColors.primary),
+                            style: SreaText.label(
+                              context,
+                            ).copyWith(color: SreaColors.primary),
                           ),
                         ],
                       ),

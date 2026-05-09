@@ -1,5 +1,5 @@
 // File: profile_screen.dart
-// (full file with floating snackbars and clear on dispose)
+// Path: mobile_user_app/lib/screens/profile_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -44,26 +44,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   final List<String> _genderOptions = ['Male', 'Female', 'Prefer not to say'];
 
-  String _formatDateForDisplay(String? isoDate) {
-    if (isoDate == null || isoDate.isEmpty) return 'Not set';
-    try {
-      final DateTime date = DateTime.parse(isoDate);
-      return DateFormat('MMMM d, yyyy').format(date);
-    } catch (e) {
-      return 'Not set';
-    }
-  }
-
-  String? _getDateOnlyForSave(String? isoDate) {
-    if (isoDate == null || isoDate.isEmpty) return null;
-    try {
-      final DateTime date = DateTime.parse(isoDate);
-      return DateFormat('yyyy-MM-dd').format(date);
-    } catch (e) {
-      return null;
-    }
-  }
-
   bool get _hasCompletedProfile {
     if (_user['role'] != 'resident') return false;
     return (_user['street']?.isNotEmpty == true) &&
@@ -87,8 +67,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
-    // Clear any lingering snackbars to prevent FAB movement when returning to home
-    ScaffoldMessenger.of(context).clearSnackBars();
     _firstNameController.dispose();
     _middleNameController.dispose();
     _lastNameController.dispose();
@@ -99,6 +77,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _error = null;
@@ -106,6 +85,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final api = ApiService();
       final user = await api.getUser();
+      if (!mounted) return;
       setState(() {
         _user = user;
         _profileImageUrl = user['profile_image'];
@@ -113,6 +93,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = 'Failed to load profile. Pull to refresh.';
         _isLoading = false;
@@ -140,7 +121,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _birthDateController = TextEditingController(
       text: _user['birth_date'] ?? '',
     );
-    _selectedGender = _user['gender'];
+    // Normalize gender from API to match dropdown options exactly.
+    // Guards against casing mismatches (e.g. "male" vs "Male" from backend).
+    final rawGender = _user['gender']?.toString();
+    _selectedGender = rawGender != null
+        ? _genderOptions.firstWhere(
+            (o) => o.toLowerCase() == rawGender.toLowerCase(),
+            orElse: () => rawGender,
+          )
+        : null;
   }
 
   Future<void> _pickProfileImage() async {
@@ -191,31 +180,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final api = ApiService();
         final compressed = await api.compressImage(File(picked.path));
         final imageUrl = await api.uploadProfileImage(compressed);
+        if (!mounted) return;
         setState(() {
           _profileImageUrl = imageUrl;
         });
         widget.onProfileImageUpdated?.call(imageUrl);
         final updatedUser = await api.getUser();
+        if (!mounted) return;
         setState(() {
           _user = updatedUser;
           _profileImageUrl = updatedUser['profile_image'];
+          _initializeControllers();
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Profile picture updated'),
+              backgroundColor: SreaColors.buttonUpdate,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Profile picture updated'),
-            backgroundColor: SreaColors.buttonUpdate,
+            content: Text('Failed to update profile picture'),
+            backgroundColor: SreaColors.error,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update profile picture'),
-          backgroundColor: SreaColors.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
     } finally {
       if (mounted) setState(() => _isUploadingProfileImage = false);
     }
@@ -226,25 +222,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isSaving = true);
     try {
       final api = ApiService();
-      String fullName = _firstNameController.text.trim();
-      if (_middleNameController.text.trim().isNotEmpty) {
-        fullName += ' ${_middleNameController.text.trim()}';
-      }
-      fullName += ' ${_lastNameController.text.trim()}';
+
+      final String firstName = _firstNameController.text.trim();
+      final String middleName = _middleNameController.text.trim();
+      final String lastName = _lastNameController.text.trim();
+
+      String fullName = firstName;
+      if (middleName.isNotEmpty) fullName += ' $middleName';
+      fullName += ' $lastName';
 
       final Map<String, dynamic> updateData = {
         'name': fullName,
         'email': _emailController.text.trim(),
         'phone': _phoneController.text.trim(),
         'gender': _selectedGender,
+        'birth_date': _birthDateController.text.trim(),
       };
-      if (_birthDateController.text.trim().isNotEmpty) {
-        final dateOnly = _getDateOnlyForSave(_birthDateController.text);
-        if (dateOnly != null) updateData['birth_date'] = dateOnly;
-      }
-
       await api.updateProfile(updateData);
       final updatedUser = await api.getUser();
+      if (!mounted) return;
       setState(() {
         _user = updatedUser;
         _profileImageUrl = updatedUser['profile_image'];
@@ -254,22 +250,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
       widget.onProfileImageUpdated?.call(_profileImageUrl);
       widget.onRefreshNeeded?.call();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Profile updated successfully'),
-          backgroundColor: SreaColors.buttonUpdate,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Profile updated successfully'),
+            backgroundColor: SreaColors.buttonUpdate,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update profile. Please try again.'),
-          backgroundColor: SreaColors.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update profile. Please try again.'),
+            backgroundColor: SreaColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -459,6 +460,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  String _formatDateForDisplay(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return 'Not set';
+    try {
+      final DateTime date = DateTime.parse(isoDate);
+      return DateFormat('MMMM d, yyyy').format(date);
+    } catch (e) {
+      return 'Not set';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -541,7 +552,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           if (!_isEditing)
             TextButton(
-              onPressed: () => setState(() => _isEditing = true),
+              onPressed: () {
+                setState(() {
+                  _isEditing = true;
+                  // Re-normalize in case _user was updated since last load
+                  final rawGender = _user['gender']?.toString();
+                  _selectedGender = rawGender != null
+                      ? _genderOptions.firstWhere(
+                          (o) => o.toLowerCase() == rawGender.toLowerCase(),
+                          orElse: () => rawGender,
+                        )
+                      : null;
+                });
+              },
               child: Text(
                 'Edit',
                 style: SreaText.label(
@@ -766,7 +789,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ─── Helper widgets (unchanged) ───
+// ========== Helper widgets (unchanged from your original) ==========
 class _ProfileHeader extends StatelessWidget {
   final String userName;
   final String email;
@@ -813,7 +836,7 @@ class _ProfileHeader extends StatelessWidget {
                     color: SreaColors.surface,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
+                      color: Colors.white.withOpacity(0.3),
                       width: 2,
                     ),
                   ),
@@ -913,13 +936,13 @@ class _ProfileHeader extends StatelessWidget {
         label = 'Verified Account';
         break;
       case 'Pending Verification':
-        bgColor = Colors.white.withValues(alpha: 0.15);
+        bgColor = Colors.white.withOpacity(0.15);
         textColor = SreaColors.textOnPrimary;
         icon = Icons.pending_outlined;
         label = 'Pending Verification';
         break;
       case 'Unverified':
-        bgColor = Colors.white.withValues(alpha: 0.15);
+        bgColor = Colors.white.withOpacity(0.15);
         textColor = SreaColors.textOnPrimary;
         icon = Icons.error_outline_rounded;
         label = 'Unverified';
@@ -933,7 +956,7 @@ class _ProfileHeader extends StatelessWidget {
         color: bgColor,
         borderRadius: SreaRadius.pill,
         border: verificationStatus != 'Verified'
-            ? Border.all(color: Colors.white.withValues(alpha: 0.3))
+            ? Border.all(color: Colors.white.withOpacity(0.3))
             : null,
       ),
       child: Row(

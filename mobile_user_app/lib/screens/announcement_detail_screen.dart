@@ -13,7 +13,6 @@ class AnnouncementDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isBarangaySpecific = !announcement.isGeneral;
-
     return Scaffold(
       backgroundColor: SreaColors.background,
       appBar: AppBar(
@@ -39,20 +38,19 @@ class AnnouncementDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Optional image
-              if (announcement.imageUrl != null) ...[
+              if (announcement.imageUrl != null &&
+                  announcement.imageUrl!.isNotEmpty) ...[
                 ClipRRect(
                   borderRadius: BorderRadius.circular(SreaRadius.md),
                   child: Image.network(
                     announcement.imageUrl!,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                   ),
                 ),
                 const SizedBox(height: 16),
               ],
-              // Title
               Text(
                 announcement.title,
                 style: SreaText.headlineSmall(context).copyWith(
@@ -61,7 +59,6 @@ class AnnouncementDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              // Meta info (date, barangay)
               Row(
                 children: [
                   Icon(
@@ -94,7 +91,6 @@ class AnnouncementDetailScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
-              // Body
               Text(
                 announcement.body,
                 style: SreaText.bodyLarge(
@@ -102,7 +98,6 @@ class AnnouncementDetailScreen extends StatelessWidget {
                 ).copyWith(color: SreaColors.textPrimary, height: 1.6),
               ),
               const SizedBox(height: 32),
-              // MDRRMO contact footer
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(

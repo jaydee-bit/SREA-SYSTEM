@@ -39,7 +39,8 @@ class _AppEntryState extends State<_AppEntry> {
 
   Future<void> _navigate() async {
     final prefs = await SharedPreferences.getInstance();
-    final seen = prefs.getBool('onboarding_seen') ?? false;
+    // Use the same key as in main.dart
+    final seen = prefs.getBool('hasSeenOnboarding') ?? false;
     if (!mounted) return;
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
@@ -55,7 +56,9 @@ class _AppEntryState extends State<_AppEntry> {
   Widget build(BuildContext context) {
     return const Scaffold(
       backgroundColor: SreaColors.primary,
-      body: Center(child: CircularProgressIndicator(color: SreaColors.textOnPrimary)),
+      body: Center(
+        child: CircularProgressIndicator(color: SreaColors.textOnPrimary),
+      ),
     );
   }
 }
@@ -86,13 +89,15 @@ const List<_OnboardingPage> _pages = [
     type: _PageType.welcome,
     title: 'SREA',
     subtitle: 'San Rafael Emergency Alert',
-    description: 'Your community\'s safety companion.\nAlways ready, always with you.',
+    description:
+        'Your community\'s safety companion.\nAlways ready, always with you.',
   ),
   _OnboardingPage(
     type: _PageType.feature,
     title: 'Stay Alert,\nStay Safe',
     subtitle: 'Real-time emergency alerts',
-    description: 'Receive instant notifications for floods, fires, and emergencies in San Rafael, Bulacan — before it\'s too late.',
+    description:
+        'Receive instant notifications for floods, fires, and emergencies in San Rafael, Bulacan — before it\'s too late.',
     icon: Icons.notifications_active_rounded,
     iconBgColor: SreaColors.primaryLight,
     iconColor: SreaColors.primary,
@@ -101,7 +106,8 @@ const List<_OnboardingPage> _pages = [
     type: _PageType.feature,
     title: 'Report\nIncidents Fast',
     subtitle: 'Be the first to report',
-    description: 'Spotted a hazard? Submit an incident report directly to local authorities in seconds. Your report can save lives.',
+    description:
+        'Spotted a hazard? Submit an incident report directly to local authorities in seconds. Your report can save lives.',
     icon: Icons.report_rounded,
     iconBgColor: Color(0xFFFFEDEC),
     iconColor: SreaColors.buttonReport,
@@ -110,7 +116,8 @@ const List<_OnboardingPage> _pages = [
     type: _PageType.feature,
     title: 'Prepared for\nAny Disaster',
     subtitle: 'Know what to do',
-    description: 'Access evacuation routes, go-bag checklists, and emergency contacts for your barangay — all in one place.',
+    description:
+        'Access evacuation routes, go-bag checklists, and emergency contacts for your barangay — all in one place.',
     icon: Icons.health_and_safety_rounded,
     iconBgColor: Color(0xFFEAF9EE),
     iconColor: SreaColors.buttonUpdate,
@@ -136,13 +143,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _markSeenAndGoToLogin() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_seen', true);
+    // Use the same key as in main.dart
+    await prefs.setBool('hasSeenOnboarding', true);
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
         pageBuilder: (_, _, _) => const LoginScreen(),
-        transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
+        transitionsBuilder: (_, anim, _, child) =>
+            FadeTransition(opacity: anim, child: child),
         transitionDuration: const Duration(milliseconds: 500),
       ),
     );
@@ -150,7 +159,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _nextPage() {
     if (_currentPage < _pages.length - 1) {
-      _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
     } else {
       _markSeenAndGoToLogin();
     }
@@ -177,7 +189,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Text(
                       'Skip',
                       style: SreaText.bodySmall(context).copyWith(
-                        color: isWelcome ? SreaColors.bottomNavInactive : SreaColors.textSecondary,
+                        color: isWelcome
+                            ? SreaColors.bottomNavInactive
+                            : SreaColors.textSecondary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -207,7 +221,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
                       _pages.length,
-                      (i) => _DotIndicator(isActive: i == _currentPage, isOnDark: isWelcome),
+                      (i) => _DotIndicator(
+                        isActive: i == _currentPage,
+                        isOnDark: isWelcome,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -217,7 +234,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     fullWidth: true,
                     size: SreaButtonSize.large,
                     icon: isLast ? Icons.arrow_forward_rounded : null,
-                    type: isWelcome ? SreaButtonType.outline : SreaButtonType.primary,
+                    type: isWelcome
+                        ? SreaButtonType.outline
+                        : SreaButtonType.primary,
                   ),
                   if (!isLast) ...[
                     const SizedBox(height: 14),
@@ -227,13 +246,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         text: TextSpan(
                           text: 'Already have an account?  ',
                           style: SreaText.bodySmall(context).copyWith(
-                            color: isWelcome ? SreaColors.bottomNavInactive : SreaColors.textSecondary,
+                            color: isWelcome
+                                ? SreaColors.bottomNavInactive
+                                : SreaColors.textSecondary,
                           ),
                           children: [
                             TextSpan(
                               text: 'Login',
                               style: SreaText.bodySmall(context).copyWith(
-                                color: isWelcome ? Colors.white : SreaColors.primary,
+                                color: isWelcome
+                                    ? Colors.white
+                                    : SreaColors.primary,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -260,7 +283,8 @@ class _WelcomePage extends StatefulWidget {
   State<_WelcomePage> createState() => _WelcomePageState();
 }
 
-class _WelcomePageState extends State<_WelcomePage> with SingleTickerProviderStateMixin {
+class _WelcomePageState extends State<_WelcomePage>
+    with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double> _fadeAnim;
   late Animation<double> _scaleAnim;
@@ -268,9 +292,15 @@ class _WelcomePageState extends State<_WelcomePage> with SingleTickerProviderSta
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
     _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _scaleAnim = Tween<double>(begin: 0.85, end: 1.0).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _scaleAnim = Tween<double>(
+      begin: 0.85,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     _ctrl.forward();
   }
 
@@ -300,8 +330,14 @@ class _WelcomePageState extends State<_WelcomePage> with SingleTickerProviderSta
                     letterSpacing: 4,
                   ),
                   children: const [
-                    TextSpan(text: 'SR', style: TextStyle(color: Colors.white)),
-                    TextSpan(text: 'EA', style: TextStyle(color: Color(0xFFFF3B30))),
+                    TextSpan(
+                      text: 'SR',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    TextSpan(
+                      text: 'EA',
+                      style: TextStyle(color: Color(0xFFFF3B30)),
+                    ),
                   ],
                 ),
               ),
@@ -316,14 +352,17 @@ class _WelcomePageState extends State<_WelcomePage> with SingleTickerProviderSta
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
-              Container(height: 1, width: 60, color: Colors.white.withValues(alpha: 0.3)),
+              Container(
+                height: 1,
+                width: 60,
+                color: Colors.white.withOpacity(0.3),
+              ),
               const SizedBox(height: 32),
               Text(
                 widget.page.description,
-                style: SreaText.bodyLarge(context).copyWith(
-                  color: SreaColors.bottomNavInactive,
-                  height: 1.7,
-                ),
+                style: SreaText.bodyLarge(
+                  context,
+                ).copyWith(color: SreaColors.bottomNavInactive, height: 1.7),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -342,7 +381,8 @@ class _FeaturePage extends StatefulWidget {
   State<_FeaturePage> createState() => _FeaturePageState();
 }
 
-class _FeaturePageState extends State<_FeaturePage> with SingleTickerProviderStateMixin {
+class _FeaturePageState extends State<_FeaturePage>
+    with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -350,9 +390,15 @@ class _FeaturePageState extends State<_FeaturePage> with SingleTickerProviderSta
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
     _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.05),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
     _ctrl.forward();
   }
 
@@ -380,11 +426,18 @@ class _FeaturePageState extends State<_FeaturePage> with SingleTickerProviderSta
                   color: widget.page.iconBgColor,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(widget.page.icon, size: 72, color: widget.page.iconColor),
+                child: Icon(
+                  widget.page.icon,
+                  size: 72,
+                  color: widget.page.iconColor,
+                ),
               ),
               const SizedBox(height: 36),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: SreaColors.primaryLight,
                   borderRadius: SreaRadius.pill,
@@ -410,10 +463,9 @@ class _FeaturePageState extends State<_FeaturePage> with SingleTickerProviderSta
               const SizedBox(height: 14),
               Text(
                 widget.page.description,
-                style: SreaText.bodyLarge(context).copyWith(
-                  color: SreaColors.textSecondary,
-                  height: 1.6,
-                ),
+                style: SreaText.bodyLarge(
+                  context,
+                ).copyWith(color: SreaColors.textSecondary, height: 1.6),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
@@ -441,7 +493,7 @@ class _DotIndicator extends StatelessWidget {
       decoration: BoxDecoration(
         color: isActive
             ? (isOnDark ? Colors.white : SreaColors.primary)
-            : (isOnDark ? Colors.white.withValues(alpha: 0.35) : SreaColors.border),
+            : (isOnDark ? Colors.white.withOpacity(0.35) : SreaColors.border),
         borderRadius: SreaRadius.pill,
       ),
     );

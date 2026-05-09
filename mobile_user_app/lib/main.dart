@@ -1,16 +1,25 @@
+// File: main.dart
+// Path: mobile_user_app/lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/api_service.dart';
 
-void main() {
-  runApp(const SreaApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
+  runApp(MyApp(showOnboarding: !hasSeenOnboarding));
 }
 
-class SreaApp extends StatelessWidget {
-  const SreaApp({super.key});
+class MyApp extends StatelessWidget {
+  final bool showOnboarding;
+  const MyApp({super.key, required this.showOnboarding});
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +68,7 @@ class SreaApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const AuthCheckScreen(),
+      home: showOnboarding ? const OnboardingScreen() : const AuthCheckScreen(),
     );
   }
 }
@@ -92,17 +101,13 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
         });
         return;
       }
-
-      // Token exists – validate by fetching user
       final api = ApiService();
       await api.getUser();
-      // If no exception, token is valid
       setState(() {
         _isAuthenticated = true;
         _isChecking = false;
       });
     } catch (e) {
-      // Token invalid – clear it and go to login
       const storage = FlutterSecureStorage();
       await storage.delete(key: 'auth_token');
       setState(() {
