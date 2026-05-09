@@ -196,18 +196,23 @@ class ApiService {
     return response.data;
   }
 
+  Future<Map<String, dynamic>> getAlert(int id) async {
+    final response = await _dio.get('/user/alerts/$id');
+    return response.data;
+  }
+
   Future<List<dynamic>> getAnnouncements() async {
     final response = await _dio.get('/user/announcements');
     return response.data;
   }
 
-  Future<List<dynamic>> getTrafficAdvisories() async {
-    final response = await _dio.get('/user/traffic');
+  Future<Map<String, dynamic>> getAnnouncement(int id) async {
+    final response = await _dio.get('/user/announcements/$id');
     return response.data;
   }
 
-  Future<Map<String, dynamic>> getAnnouncement(int id) async {
-    final response = await _dio.get('/user/announcements/$id');
+  Future<List<dynamic>> getTrafficAdvisories() async {
+    final response = await _dio.get('/user/traffic');
     return response.data;
   }
 

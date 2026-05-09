@@ -26,7 +26,6 @@ class SreaSidebar extends StatelessWidget {
     this.profileImageUrl,
   });
 
-  // Helper – passes through ApiService.getFullImageUrl (handles both absolute & relative)
   String? _getFullImageUrl() {
     final api = ApiService();
     return api.getFullImageUrl(profileImageUrl);
@@ -60,7 +59,7 @@ class SreaSidebar extends StatelessWidget {
                       color: SreaColors.surface,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
+                        color: Colors.white.withValues(alpha: 0.3),
                         width: 2,
                       ),
                     ),
@@ -118,6 +117,14 @@ class SreaSidebar extends StatelessWidget {
                     activeIcon: Icons.home_rounded,
                     label: 'Home',
                     route: '/home',
+                    activeRoute: activeRoute,
+                    onTap: onNavigate,
+                  ),
+                  _SidebarItem(
+                    icon: Icons.warning_amber_outlined,
+                    activeIcon: Icons.warning_amber_rounded,
+                    label: 'Alerts',
+                    route: '/alerts',
                     activeRoute: activeRoute,
                     onTap: onNavigate,
                   ),

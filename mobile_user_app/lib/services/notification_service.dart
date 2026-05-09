@@ -1,4 +1,27 @@
-import '../screens/notifications_screen.dart';
+// File: notification_service.dart
+// Path: mobile_user_app/lib/services/notification_service.dart
+
+import '../screens/notifications_screen.dart'; // only for type reference; not used actually
+
+class AppNotification {
+  final String id;
+  final String type; // 'alert', 'announcement', 'traffic', 'incident'
+  final String title;
+  final String body;
+  final DateTime timestamp;
+  final bool isRead;
+  final Map<String, dynamic>? payload;
+
+  AppNotification({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.body,
+    required this.timestamp,
+    this.isRead = false,
+    this.payload,
+  });
+}
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();

@@ -11,7 +11,11 @@ import 'complete_profile_screen.dart';
 import 'incident_reports_screen.dart';
 import 'profile_screen.dart';
 import 'announcements_screen.dart';
+import 'announcement_detail_screen.dart';
 import 'traffic_advisories_screen.dart';
+import 'traffic_advisory_detail_screen.dart';
+import 'alerts_screen.dart';
+import 'alert_detail_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'notifications_screen.dart';
 import '../services/api_service.dart';
@@ -149,7 +153,6 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() => _hasShownWelcome = false);
           }
         });
-        
       }
     } catch (e) {
       setState(() {
@@ -229,6 +232,12 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const IncidentReportsScreen()),
+        ).then((_) => setState(() => _currentIndex = 0));
+        break;
+      case '/alerts':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AlertsScreen()),
         ).then((_) => setState(() => _currentIndex = 0));
         break;
       case '/privacy':
@@ -368,6 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'badgeType': _levelToBadgeType(alert['level']),
         'badgeLabel': alert['level'].toUpperCase(),
         'icon': Icons.warning_amber_rounded,
+        'id': alert['id'],
       });
     }
     for (var ann in _announcements.take(2)) {
@@ -379,6 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'badgeType': null,
         'badgeLabel': null,
         'icon': Icons.campaign_outlined,
+        'id': ann['id'],
       });
     }
     for (var traffic in _traffic.take(2)) {
@@ -390,6 +401,7 @@ class _HomeScreenState extends State<HomeScreen> {
         'badgeType': _severityToBadgeType(traffic['severity']),
         'badgeLabel': traffic['severity'].toUpperCase(),
         'icon': Icons.traffic_outlined,
+        'id': traffic['id'],
       });
     }
     recentUpdates.sort((a, b) => b['time'].compareTo(a['time']));
@@ -493,8 +505,137 @@ class _HomeScreenState extends State<HomeScreen> {
                                 time: update['time'] as String,
                                 icon: update['icon'] as IconData,
                                 badge: badgeWidget,
-                                onTap: () {
-                                  // TODO: navigate to detail screen
+                                onTap: () async {
+                                  final type = update['type'] as String;
+                                  final id = update['id'] as int;
+                                  final api = ApiService();
+
+                                  if (type == 'announcement') {
+                                    try {
+                                      final data = await api.getAnnouncement(
+                                        id,
+                                      );
+                                      if (!mounted) return;
+                                      final announcement = Announcement(
+                                        id: data['id'],
+                                        title: data['title'] ?? '',
+                                        body: data['content'] ?? '',
+                                        publishedAt: DateTime.parse(
+                                          data['published_at'] ??
+                                              DateTime.now().toIso8601String(),
+                                        ),
+                                        barangay: data['barangay'],
+                                        imageUrl: data['image_url'],
+                                      );
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              AnnouncementDetailScreen(
+                                                announcement: announcement,
+                                              ),
+                                        ),
+                                      );
+                                    } catch (e) {
+                                      print('Error loading announcement: $e');
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Could not load announcement',
+                                          ),
+                                          backgroundColor: SreaColors.error,
+                                        ),
+                                      );
+                                    }
+                                  } else if (type == 'traffic') {
+                                    try {
+                                      final data = await api.getTrafficAdvisory(
+                                        id,
+                                      );
+                                      if (!mounted) return;
+                                      final severityMap = {
+                                        'high': SreaBadgeType.high,
+                                        'medium': SreaBadgeType.medium,
+                                        'low': SreaBadgeType.low,
+                                      };
+                                      final severity =
+                                          severityMap[data['severity']] ??
+                                          SreaBadgeType.low;
+                                      final advisory = TrafficAdvisory(
+                                        id: data['id'],
+                                        title: data['title'] ?? '',
+                                        description: data['description'] ?? '',
+                                        location: data['location'] ?? '',
+                                        severity: severity,
+                                        publishedAt: DateTime.parse(
+                                          data['created_at'] ??
+                                              DateTime.now().toIso8601String(),
+                                        ),
+                                        effectiveFrom:
+                                            data['effective_from'] != null
+                                            ? DateTime.parse(
+                                                data['effective_from'],
+                                              )
+                                            : null,
+                                        effectiveTo:
+                                            data['effective_to'] != null
+                                            ? DateTime.parse(
+                                                data['effective_to'],
+                                              )
+                                            : null,
+                                      );
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              TrafficAdvisoryDetailScreen(
+                                                advisory: advisory,
+                                              ),
+                                        ),
+                                      );
+                                    } catch (e) {
+                                      print(
+                                        'Error loading traffic advisory: $e',
+                                      );
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Could not load traffic advisory',
+                                          ),
+                                          backgroundColor: SreaColors.error,
+                                        ),
+                                      );
+                                    }
+                                  } else if (type == 'alert') {
+                                    try {
+                                      final alert = await api.getAlert(id);
+                                      if (!mounted) return;
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              AlertDetailScreen(alert: alert),
+                                        ),
+                                      );
+                                    } catch (e) {
+                                      print('Error loading alert: $e');
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Could not load alert'),
+                                          backgroundColor: SreaColors.error,
+                                        ),
+                                      );
+                                    }
+                                  }
                                 },
                               ),
                             );

@@ -278,7 +278,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                 ),
 
                 const SizedBox(height: 24),
-                _SectionHeader(title: 'Verification'),
+                _SectionHeader(title: 'Valid ID'),
                 const SizedBox(height: 12),
 
                 SreaDropdown<String>(

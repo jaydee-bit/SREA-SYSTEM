@@ -1,63 +1,34 @@
+// File: notifications_screen.dart
+// Path: mobile_user_app/lib/screens/notifications_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
 import 'package:latlong2/latlong.dart';
-import '../services/notification_service.dart';
+import '../services/api_service.dart';
 import '../models/incident_report_model.dart';
+import 'alert_detail_screen.dart';
+import 'announcements_screen.dart'; // for Announcement class
+import 'announcement_detail_screen.dart';
+import 'traffic_advisories_screen.dart'; // for TrafficAdvisory class
+import 'traffic_advisory_detail_screen.dart';
 import 'incident_report_detail_screen.dart';
-import 'profile_screen.dart';
 
-enum NotificationType {
-  alert,
-  announcement,
-  traffic,
-  incidentStatus,
-  accountVerified,
-}
-
-class AppNotification {
+class NotificationItem {
   final String id;
-  final NotificationType type;
+  final String type; // 'alert', 'announcement', 'traffic', 'incident'
   final String title;
-  final String body;
+  final String message;
   final DateTime timestamp;
-  final bool isRead;
-  final Map<String, dynamic>? payload;
+  final Map<String, dynamic>? rawData;
 
-  AppNotification({
+  NotificationItem({
     required this.id,
     required this.type,
     required this.title,
-    required this.body,
+    required this.message,
     required this.timestamp,
-    this.isRead = false,
-    this.payload,
+    this.rawData,
   });
-
-  String get formattedTime {
-    final now = DateTime.now();
-    final diff = now.difference(timestamp);
-    if (diff.inDays == 0) {
-      if (diff.inHours == 0) return '${diff.inMinutes} min ago';
-      return '${diff.inHours} hr ago';
-    } else if (diff.inDays == 1)
-      return 'Yesterday';
-    return '${_monthAbbr(timestamp.month)} ${timestamp.day}';
-  }
-
-  String _monthAbbr(int m) => const [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ][m - 1];
 }
 
 class NotificationsScreen extends StatefulWidget {
@@ -68,140 +39,254 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final NotificationService _service = NotificationService();
-  List<AppNotification> _notifications = [];
+  List<NotificationItem> _notifications = [];
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    // Load mock data after the first frame to avoid setState during build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadInitialData();
-      _service.addListener(_refresh);
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
     });
-  }
+    try {
+      final api = ApiService();
+      final user = await api.getUser();
+      final role = user['role'];
+      final userBarangay = user['barangay'] ?? '';
+      final isResident = role == 'resident';
 
-  @override
-  void dispose() {
-    _service.removeListener(_refresh);
-    super.dispose();
-  }
+      final results = await Future.wait([
+        api.getAlerts(),
+        api.getAnnouncements(),
+        api.getTrafficAdvisories(),
+        api.getMyIncidents(),
+      ]);
 
-  void _refresh() => setState(() => _notifications = _service.notifications);
+      final alerts = results[0] as List<dynamic>;
+      final announcements = results[1] as List<dynamic>;
+      final traffic = results[2] as List<dynamic>;
+      final incidents = results[3] as List<dynamic>;
 
-  void _loadInitialData() {
-    if (_service.notifications.isEmpty) {
-      // Public updates
-      _service.addNotification(
-        AppNotification(
-          id: '1',
-          type: NotificationType.alert,
-          title: 'Flooding reported near Madlum river area',
-          body:
-              'Heavy flooding has affected several houses. Residents advised to evacuate.',
-          timestamp: DateTime.now().subtract(const Duration(hours: 5)),
-          payload: {'type': 'alert', 'id': 'alert_1'},
-        ),
-      );
-      _service.addNotification(
-        AppNotification(
-          id: '2',
-          type: NotificationType.traffic,
-          title: 'Road closure along San Rafael–Angat highway',
-          body:
-              'The highway will be closed for repair from April 25 to April 30.',
-          timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-          payload: {'type': 'traffic', 'id': 'traffic_1'},
-        ),
-      );
-      _service.addNotification(
-        AppNotification(
-          id: '3',
-          type: NotificationType.announcement,
-          title: 'Power interruption scheduled maintenance',
-          body:
-              'Power interruption on April 22 from 8 AM to 5 PM in Poblacion.',
-          timestamp: DateTime.now().subtract(const Duration(days: 1)),
-          payload: {'type': 'announcement', 'id': 'ann_1'},
-        ),
-      );
-      // Private: incident status changes
-      _service.addNotification(
-        AppNotification(
-          id: '4',
-          type: NotificationType.incidentStatus,
-          title: 'Incident status updated: Road Accident',
-          body: 'Your incident report has been marked as Under Review.',
-          timestamp: DateTime.now().subtract(const Duration(days: 2)),
-          payload: {'incidentId': '2'},
-        ),
-      );
-      _service.addNotification(
-        AppNotification(
-          id: '5',
-          type: NotificationType.incidentStatus,
-          title: 'Incident resolved: Fire',
-          body: 'Your incident report has been marked as Resolved.',
-          timestamp: DateTime.now().subtract(const Duration(days: 3)),
-          payload: {'incidentId': '3'},
-        ),
-      );
-      _service.addNotification(
-        AppNotification(
-          id: '6',
-          type: NotificationType.accountVerified,
-          title: 'Account verified!',
-          body:
-              'Your SREA account has been verified. You can now report incidents.',
-          timestamp: DateTime.now().subtract(const Duration(days: 4)),
-          payload: null,
-        ),
-      );
-    }
-    _refresh();
-  }
+      final List<NotificationItem> items = [];
 
-  void _onTap(AppNotification n) {
-    _service.markAsRead(n.id);
-    switch (n.type) {
-      case NotificationType.incidentStatus:
-        if (n.payload?['incidentId'] != null) {
-          final mockReport = IncidentReport(
-            id: n.payload!['incidentId'],
-            type: n.title.replaceAll('Incident status updated: ', ''),
-            description: n.body,
-            photoPath: null,
-            barangay: 'Poblacion',
-            locationDetails: '',
-            coordinates: const LatLng(15.0153, 120.9996),
-            address: 'San Rafael',
-            status: n.body.contains('Resolved') ? 'Resolved' : 'Under Review',
-            reportedAt: n.timestamp,
-            reporterRole: 'resident',
-            reporterIsVerified: true,
-          );
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => IncidentReportDetailScreen(report: mockReport),
-            ),
-          );
+      // 1. Alerts (filter by barangay for residents)
+      for (var alert in alerts) {
+        if (isResident) {
+          final barangay = alert['barangay'];
+          if (barangay != null &&
+              barangay.isNotEmpty &&
+              barangay != userBarangay) {
+            continue;
+          }
         }
-        break;
-      case NotificationType.accountVerified:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        items.add(
+          NotificationItem(
+            id: 'alert_${alert['id']}',
+            type: 'alert',
+            title: alert['title'] ?? '',
+            message: alert['description'] ?? '',
+            timestamp: DateTime.parse(alert['created_at']),
+            rawData: alert,
+          ),
         );
-        break;
-      default:
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Details coming soon')));
+      }
+
+      // 2. Announcements (filter by barangay for residents)
+      for (var ann in announcements) {
+        if (isResident) {
+          final barangay = ann['barangay'];
+          if (barangay != null &&
+              barangay.isNotEmpty &&
+              barangay != userBarangay) {
+            continue;
+          }
+        }
+        items.add(
+          NotificationItem(
+            id: 'announcement_${ann['id']}',
+            type: 'announcement',
+            title: ann['title'] ?? '',
+            message: ann['content'] ?? '',
+            timestamp: DateTime.parse(
+              ann['published_at'] ??
+                  ann['created_at'] ??
+                  DateTime.now().toIso8601String(),
+            ),
+            rawData: ann,
+          ),
+        );
+      }
+
+      // 3. Traffic advisories (all)
+      for (var adv in traffic) {
+        items.add(
+          NotificationItem(
+            id: 'traffic_${adv['id']}',
+            type: 'traffic',
+            title: adv['title'] ?? '',
+            message: adv['description'] ?? '',
+            timestamp: DateTime.parse(adv['created_at']),
+            rawData: adv,
+          ),
+        );
+      }
+
+      // 4. Incident status updates (non-pending)
+      for (var inc in incidents) {
+        final status = inc['status'] ?? 'Pending';
+        if (status == 'Pending') continue;
+        String statusMessage = '';
+        switch (status.toLowerCase()) {
+          case 'under review':
+            statusMessage = 'Your report is now under review by MDRRMO.';
+            break;
+          case 'resolved':
+            statusMessage = 'Your report has been resolved.';
+            break;
+          case 'rejected':
+            statusMessage =
+                'Your report was rejected. Please contact MDRRMO for details.';
+            break;
+          case 'escalated':
+            statusMessage =
+                'Your report has been escalated to higher authorities.';
+            break;
+          default:
+            statusMessage = 'Status updated to $status.';
+        }
+        items.add(
+          NotificationItem(
+            id: 'incident_${inc['id']}',
+            type: 'incident',
+            title: 'Incident Update: ${inc['type']}',
+            message: statusMessage,
+            timestamp: DateTime.parse(inc['updated_at'] ?? inc['reported_at']),
+            rawData: inc,
+          ),
+        );
+      }
+
+      items.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+      if (!mounted) return;
+      setState(() {
+        _notifications = items;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load notifications. Pull to refresh.';
+        _isLoading = false;
+      });
     }
   }
 
-  void _markAllRead() => _service.markAllAsRead();
+  Future<void> _refresh() async {
+    await _loadNotifications();
+  }
+
+  void _onNotificationTap(NotificationItem item) {
+    if (item.type == 'alert' && item.rawData != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AlertDetailScreen(alert: item.rawData!),
+        ),
+      );
+    } else if (item.type == 'announcement' && item.rawData != null) {
+      final announcement = Announcement(
+        id: item.rawData!['id'],
+        title: item.rawData!['title'] ?? '',
+        body: item.rawData!['content'] ?? '',
+        publishedAt: DateTime.parse(
+          item.rawData!['published_at'] ??
+              item.rawData!['created_at'] ??
+              DateTime.now().toIso8601String(),
+        ),
+        barangay: item.rawData!['barangay'],
+        imageUrl: item.rawData!['image_url'],
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AnnouncementDetailScreen(announcement: announcement),
+        ),
+      );
+    } else if (item.type == 'traffic' && item.rawData != null) {
+      final severityMap = {
+        'high': SreaBadgeType.high,
+        'medium': SreaBadgeType.medium,
+        'low': SreaBadgeType.low,
+      };
+      final severity =
+          severityMap[item.rawData!['severity']] ?? SreaBadgeType.low;
+      final advisory = TrafficAdvisory(
+        id: item.rawData!['id'],
+        title: item.rawData!['title'] ?? '',
+        description: item.rawData!['description'] ?? '',
+        location: item.rawData!['location'] ?? '',
+        severity: severity,
+        publishedAt: DateTime.parse(
+          item.rawData!['created_at'] ?? DateTime.now().toIso8601String(),
+        ),
+        effectiveFrom: item.rawData!['effective_from'] != null
+            ? DateTime.parse(item.rawData!['effective_from'])
+            : null,
+        effectiveTo: item.rawData!['effective_to'] != null
+            ? DateTime.parse(item.rawData!['effective_to'])
+            : null,
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TrafficAdvisoryDetailScreen(advisory: advisory),
+        ),
+      );
+    } else if (item.type == 'incident' && item.rawData != null) {
+      final reporter = item.rawData!['reporter'] ?? {};
+      final incident = IncidentReport(
+        id: item.rawData!['id'].toString(),
+        type: item.rawData!['type'] ?? '',
+        description: item.rawData!['description'] ?? '',
+        photoPath: item.rawData!['photo_path'],
+        barangay: item.rawData!['barangay'] ?? '',
+        locationDetails: item.rawData!['location_details'],
+        coordinates: LatLng(
+          double.parse(item.rawData!['latitude'].toString()),
+          double.parse(item.rawData!['longitude'].toString()),
+        ),
+        address: item.rawData!['address'] ?? '',
+        status: item.rawData!['status'] ?? 'Pending',
+        reportedAt: DateTime.parse(item.rawData!['reported_at']),
+        personsInvolved: item.rawData!['persons_involved'],
+        reporterRole: reporter['role'] ?? '',
+        reporterIsVerified: reporter['is_verified'] ?? false,
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => IncidentReportDetailScreen(report: incident),
+        ),
+      );
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays > 0) return '${diff.inDays} days ago';
+    if (diff.inHours > 0) return '${diff.inHours} hours ago';
+    if (diff.inMinutes > 0) return '${diff.inMinutes} minutes ago';
+    return 'Just now';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -223,149 +308,112 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             context,
           ).copyWith(color: SreaColors.textOnPrimary),
         ),
-        actions: [
-          TextButton(
-            onPressed: _markAllRead,
-            child: Text(
-              'Mark all read',
-              style: SreaText.label(
-                context,
-              ).copyWith(color: SreaColors.textOnPrimary),
-            ),
-          ),
-        ],
       ),
-      body: _notifications.isEmpty
-          ? _EmptyNotifications()
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _notifications.length,
-              itemBuilder: (context, i) => _NotificationCard(
-                notification: _notifications[i],
-                onTap: () => _onTap(_notifications[i]),
-              ),
-            ),
-    );
-  }
-}
-
-class _NotificationCard extends StatelessWidget {
-  final AppNotification notification;
-  final VoidCallback onTap;
-  const _NotificationCard({required this.notification, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    IconData icon;
-    Color iconColor;
-    switch (notification.type) {
-      case NotificationType.alert:
-        icon = Icons.warning_amber_rounded;
-        iconColor = SreaColors.critical;
-        break;
-      case NotificationType.traffic:
-        icon = Icons.traffic_outlined;
-        iconColor = SreaColors.high;
-        break;
-      case NotificationType.announcement:
-        icon = Icons.campaign_outlined;
-        iconColor = SreaColors.primary;
-        break;
-      case NotificationType.incidentStatus:
-        icon = Icons.report_problem_outlined;
-        iconColor = SreaColors.medium;
-        break;
-      case NotificationType.accountVerified:
-        icon = Icons.verified_rounded;
-        iconColor = SreaColors.low;
-        break;
-    }
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: SreaCard(
-        onTap: onTap,
-        color: notification.isRead ? null : SreaColors.primaryLight,
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
-                borderRadius: SreaRadius.input,
-              ),
-              child: Icon(icon, color: iconColor, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    notification.title,
-                    style: SreaText.bodySmall(
-                      context,
-                    ).copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    notification.body,
-                    style: SreaText.label(
-                      context,
-                    ).copyWith(color: SreaColors.textSecondary),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    notification.formattedTime,
-                    style: SreaText.label(
-                      context,
-                    ).copyWith(color: SreaColors.textHint),
-                  ),
-                ],
-              ),
-            ),
-            if (!notification.isRead)
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: SreaColors.primary,
-                  shape: BoxShape.circle,
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _error!,
+                      style: SreaText.bodySmall(
+                        context,
+                      ).copyWith(color: SreaColors.textSecondary),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadNotifications,
+                      child: const Text('Retry'),
+                    ),
+                  ],
                 ),
+              )
+            : _notifications.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.notifications_none_outlined,
+                      size: 64,
+                      color: SreaColors.textHint,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No notifications',
+                      style: SreaText.bodyLarge(
+                        context,
+                      ).copyWith(color: SreaColors.textSecondary),
+                    ),
+                  ],
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _notifications.length,
+                itemBuilder: (context, index) {
+                  final item = _notifications[index];
+                  IconData icon;
+                  switch (item.type) {
+                    case 'alert':
+                      icon = Icons.warning_amber_rounded;
+                      break;
+                    case 'announcement':
+                      icon = Icons.campaign_rounded;
+                      break;
+                    case 'traffic':
+                      icon = Icons.traffic_rounded;
+                      break;
+                    default:
+                      icon = Icons.info_outline_rounded;
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SreaCard(
+                      onTap: () => _onNotificationTap(item),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(icon, size: 22, color: SreaColors.primary),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  item.title,
+                                  style: SreaText.bodyLarge(context).copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: SreaColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            item.message,
+                            style: SreaText.bodySmall(context).copyWith(
+                              color: SreaColors.textSecondary,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _formatDate(item.timestamp),
+                            style: SreaText.label(
+                              context,
+                            ).copyWith(color: SreaColors.textHint),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyNotifications extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.notifications_none, size: 64, color: SreaColors.textHint),
-          const SizedBox(height: 16),
-          Text(
-            'No notifications',
-            style: SreaText.bodyLarge(
-              context,
-            ).copyWith(color: SreaColors.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'You will see updates about alerts, incident reports, and account verification here.',
-            style: SreaText.bodySmall(
-              context,
-            ).copyWith(color: SreaColors.textHint),
-            textAlign: TextAlign.center,
-          ),
-        ],
       ),
     );
   }

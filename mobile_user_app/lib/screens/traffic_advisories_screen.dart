@@ -3,8 +3,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
+import '../services/api_service.dart';
 import 'traffic_advisory_detail_screen.dart';
 
+// ========== TrafficAdvisory Model ==========
 class TrafficAdvisory {
   final int id;
   final String title;
@@ -25,12 +27,86 @@ class TrafficAdvisory {
     this.effectiveFrom,
     this.effectiveTo,
   });
+}
 
-  String get formattedDate {
-    return '${_monthAbbr(publishedAt.month)} ${publishedAt.day}, ${publishedAt.year}';
+// ========== Screen ==========
+class TrafficAdvisoriesScreen extends StatefulWidget {
+  const TrafficAdvisoriesScreen({super.key});
+
+  @override
+  State<TrafficAdvisoriesScreen> createState() =>
+      _TrafficAdvisoriesScreenState();
+}
+
+class _TrafficAdvisoriesScreenState extends State<TrafficAdvisoriesScreen> {
+  List<TrafficAdvisory> _advisories = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAdvisories();
   }
 
-  String _monthAbbr(int month) {
+  Future<void> _loadAdvisories() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final api = ApiService();
+      final data = await api.getTrafficAdvisories();
+      if (!mounted) return;
+      final List<TrafficAdvisory> loaded = data.map((json) {
+        final severityStr = (json['severity'] ?? 'low').toLowerCase();
+        SreaBadgeType severity;
+        switch (severityStr) {
+          case 'high':
+            severity = SreaBadgeType.high;
+            break;
+          case 'medium':
+            severity = SreaBadgeType.medium;
+            break;
+          default:
+            severity = SreaBadgeType.low;
+        }
+        return TrafficAdvisory(
+          id: json['id'],
+          title: json['title'] ?? '',
+          description: json['description'] ?? '',
+          location: json['location'] ?? '',
+          severity: severity,
+          publishedAt: DateTime.parse(
+            json['created_at'] ?? DateTime.now().toIso8601String(),
+          ),
+          effectiveFrom: json['effective_from'] != null
+              ? DateTime.parse(json['effective_from'])
+              : null,
+          effectiveTo: json['effective_to'] != null
+              ? DateTime.parse(json['effective_to'])
+              : null,
+        );
+      }).toList();
+      setState(() {
+        _advisories = loaded;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load traffic advisories. Pull to refresh.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _refresh() async {
+    await _loadAdvisories();
+  }
+
+  String _formatDate(DateTime date) {
     const months = [
       'Jan',
       'Feb',
@@ -45,91 +121,18 @@ class TrafficAdvisory {
       'Nov',
       'Dec',
     ];
-    return months[month - 1];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
-  String get effectiveDateRange {
-    if (effectiveFrom == null && effectiveTo == null) return '';
-    if (effectiveFrom != null && effectiveTo == null) {
-      return 'From ${_formatDate(effectiveFrom!)}';
+  String _formatEffectiveRange(TrafficAdvisory adv) {
+    if (adv.effectiveFrom == null && adv.effectiveTo == null) return '';
+    if (adv.effectiveFrom != null && adv.effectiveTo == null) {
+      return 'From ${_formatDate(adv.effectiveFrom!)}';
     }
-    if (effectiveFrom == null && effectiveTo != null) {
-      return 'Until ${_formatDate(effectiveTo!)}';
+    if (adv.effectiveFrom == null && adv.effectiveTo != null) {
+      return 'Until ${_formatDate(adv.effectiveTo!)}';
     }
-    return '${_formatDate(effectiveFrom!)} – ${_formatDate(effectiveTo!)}';
-  }
-
-  String _formatDate(DateTime date) {
-    return '${_monthAbbr(date.month)} ${date.day}, ${date.year}';
-  }
-}
-
-// Mock data – severity labels now match Recent Updates case
-final List<TrafficAdvisory> _mockAdvisories = [
-  TrafficAdvisory(
-    id: 1,
-    title: 'Major road closure – San Rafael‑Angat highway',
-    description:
-        'The highway will be closed for repair from April 25 to April 30, 2026. Use alternate routes via Barangay Sampaloc.',
-    location: 'Barangay Sampaloc',
-    severity: SreaBadgeType.high,
-    publishedAt: DateTime(2026, 4, 20),
-    effectiveFrom: DateTime(2026, 4, 25),
-    effectiveTo: DateTime(2026, 4, 30),
-  ),
-  TrafficAdvisory(
-    id: 2,
-    title: 'Heavy traffic due to market day',
-    description:
-        'Expect heavy traffic around Poblacion market on April 22, 2026, from 7 AM to 2 PM. Plan your trip accordingly.',
-    location: 'Poblacion',
-    severity: SreaBadgeType.medium,
-    publishedAt: DateTime(2026, 4, 19),
-    effectiveFrom: DateTime(2026, 4, 22),
-    effectiveTo: null,
-  ),
-  TrafficAdvisory(
-    id: 3,
-    title: 'Road painting on shoulder lane',
-    description:
-        'Shoulder lane painting along National Highway from April 21 to April 23. No lane closures, but proceed with caution.',
-    location: 'National Highway',
-    severity: SreaBadgeType.low,
-    publishedAt: DateTime(2026, 4, 18),
-    effectiveFrom: DateTime(2026, 4, 21),
-    effectiveTo: DateTime(2026, 4, 23),
-  ),
-];
-
-class TrafficAdvisoriesScreen extends StatefulWidget {
-  const TrafficAdvisoriesScreen({super.key});
-
-  @override
-  State<TrafficAdvisoriesScreen> createState() =>
-      _TrafficAdvisoriesScreenState();
-}
-
-class _TrafficAdvisoriesScreenState extends State<TrafficAdvisoriesScreen> {
-  bool _isLoading = true;
-  List<TrafficAdvisory> _advisories = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadAdvisories();
-  }
-
-  Future<void> _loadAdvisories() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    setState(() {
-      _advisories = _mockAdvisories;
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _refresh() async {
-    await _loadAdvisories();
+    return '${_formatDate(adv.effectiveFrom!)} – ${_formatDate(adv.effectiveTo!)}';
   }
 
   @override
@@ -153,228 +156,215 @@ class _TrafficAdvisoriesScreenState extends State<TrafficAdvisoriesScreen> {
           ).copyWith(color: SreaColors.textOnPrimary),
         ),
       ),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refresh,
-          color: SreaColors.primary,
-          child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: SreaColors.primary),
-                )
-              : _advisories.isEmpty
-              ? _EmptyAdvisories()
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _advisories.length,
-                  itemBuilder: (context, index) {
-                    final advisory = _advisories[index];
-                    return _AdvisoryCard(
-                      advisory: advisory,
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _error!,
+                      style: SreaText.bodySmall(
+                        context,
+                      ).copyWith(color: SreaColors.textSecondary),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadAdvisories,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
+            : _advisories.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.traffic_outlined,
+                      size: 64,
+                      color: SreaColors.textHint,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No traffic advisories',
+                      style: SreaText.bodyLarge(
+                        context,
+                      ).copyWith(color: SreaColors.textSecondary),
+                    ),
+                  ],
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _advisories.length,
+                itemBuilder: (context, index) {
+                  final adv = _advisories[index];
+                  final severityLabel = adv.severity.name.toUpperCase();
+                  final hasLongDesc = adv.description.length > 100;
+                  final preview = hasLongDesc
+                      ? '${adv.description.substring(0, 100)}...'
+                      : adv.description;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SreaCard(
                       onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                TrafficAdvisoryDetailScreen(advisory: advisory),
+                                TrafficAdvisoryDetailScreen(advisory: adv),
                           ),
                         );
                       },
-                    );
-                  },
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AdvisoryCard extends StatelessWidget {
-  final TrafficAdvisory advisory;
-  final VoidCallback onTap;
-
-  const _AdvisoryCard({required this.advisory, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasLongDesc = advisory.description.length > 100;
-    final preview = hasLongDesc
-        ? '${advisory.description.substring(0, 100)}...'
-        : advisory.description;
-
-    // Use same label casing as Recent Updates
-    final String severityLabel =
-        advisory.severity.name[0].toUpperCase() +
-        advisory.severity.name.substring(1);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: SreaCard(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Title with severity badge (same styling as Recent Updates)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    advisory.title,
-                    style: SreaText.bodyLarge(context).copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: SreaColors.textPrimary,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SreaBadge(
-                  type: advisory.severity,
-                  label: severityLabel,
-                  showDot: true,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            // Larger mock map thumbnail (80x80)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: SreaColors.primaryLight,
-                    borderRadius: SreaRadius.input,
-                    border: Border.all(color: SreaColors.border),
-                  ),
-                  child: const Icon(
-                    Icons.map_outlined,
-                    size: 40,
-                    color: SreaColors.primary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Location
-                      Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.location_on_outlined,
-                            size: 14,
-                            color: SreaColors.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              advisory.location,
-                              style: SreaText.bodySmall(context).copyWith(
-                                color: SreaColors.primary,
-                                fontWeight: FontWeight.w500,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  adv.title,
+                                  style: SreaText.bodyLarge(context).copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: SreaColors.textPrimary,
+                                  ),
+                                ),
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                              const SizedBox(width: 8),
+                              SreaBadge(
+                                type: adv.severity,
+                                label: severityLabel,
+                                showDot: true,
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      // Published date
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_today_outlined,
-                            size: 12,
-                            color: SreaColors.textHint,
+                          const SizedBox(height: 10),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  color: SreaColors.primaryLight,
+                                  borderRadius: SreaRadius.input,
+                                  border: Border.all(color: SreaColors.border),
+                                ),
+                                child: const Icon(
+                                  Icons.map_outlined,
+                                  size: 40,
+                                  color: SreaColors.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.location_on_outlined,
+                                          size: 14,
+                                          color: SreaColors.primary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            adv.location,
+                                            style: SreaText.bodySmall(context)
+                                                .copyWith(
+                                                  color: SreaColors.primary,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.calendar_today_outlined,
+                                          size: 12,
+                                          color: SreaColors.textHint,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          _formatDate(adv.publishedAt),
+                                          style: SreaText.label(context)
+                                              .copyWith(
+                                                color: SreaColors.textHint,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (_formatEffectiveRange(
+                                      adv,
+                                    ).isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.schedule_outlined,
+                                            size: 12,
+                                            color: SreaColors.textHint,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              _formatEffectiveRange(adv),
+                                              style: SreaText.label(context)
+                                                  .copyWith(
+                                                    color: SreaColors.textHint,
+                                                  ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(height: 12),
                           Text(
-                            advisory.formattedDate,
-                            style: SreaText.label(
-                              context,
-                            ).copyWith(color: SreaColors.textHint),
+                            preview,
+                            style: SreaText.bodySmall(context).copyWith(
+                              color: SreaColors.textSecondary,
+                              height: 1.5,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              'View details →',
+                              style: SreaText.label(context).copyWith(
+                                color: SreaColors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                      // Effective date range (if any)
-                      if (advisory.effectiveDateRange.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.schedule_outlined,
-                              size: 12,
-                              color: SreaColors.textHint,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              advisory.effectiveDateRange,
-                              style: SreaText.label(
-                                context,
-                              ).copyWith(color: SreaColors.textHint),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // Description preview
-            Text(
-              preview,
-              style: SreaText.bodySmall(
-                context,
-              ).copyWith(color: SreaColors.textSecondary, height: 1.5),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                'View details →',
-                style: SreaText.label(context).copyWith(
-                  color: SreaColors.primary,
-                  fontWeight: FontWeight.w600,
-                ),
+                    ),
+                  );
+                },
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyAdvisories extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.traffic_outlined, size: 64, color: SreaColors.textHint),
-          const SizedBox(height: 16),
-          Text(
-            'No traffic advisories',
-            style: SreaText.bodyLarge(
-              context,
-            ).copyWith(color: SreaColors.textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Check back later for updates.',
-            style: SreaText.bodySmall(
-              context,
-            ).copyWith(color: SreaColors.textHint),
-            textAlign: TextAlign.center,
-          ),
-        ],
       ),
     );
   }
