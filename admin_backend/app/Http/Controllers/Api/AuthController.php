@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Incident;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +23,7 @@ class AuthController extends Controller
             'password' => 'required|string|min:6|confirmed',
             'phone' => 'nullable|string',
             'role' => 'sometimes|in:resident,non_resident',
-            'barangay' => 'nullable|string',   // not required
+            'barangay' => 'nullable|string',
         ]);
 
         $user = User::create([
@@ -102,11 +103,12 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logged out']);
     }
 
-    // ==================== USER PROFILE (with all fields) ====================
+    // ==================== USER PROFILE (with incident counts) ====================
     public function user(Request $request)
     {
         $user = $request->user();
-        return response()->json([
+
+        $data = [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
@@ -117,15 +119,26 @@ class AuthController extends Controller
             'province' => $user->province,
             'municipality' => $user->municipality,
             'valid_id_photo' => $user->valid_id_photo,
-            'valid_id_type' => $user->valid_id_type,   // ✅ ADDED
+            'valid_id_type' => $user->valid_id_type,
             'profile_image' => $user->profile_image,
             'phone' => $user->phone,
             'gender' => $user->gender,
             'birth_date' => $user->birth_date,
-        ]);
+        ];
+
+        // Always include incident counts (0 if none)
+        $data['incidents_handled'] = Incident::where('assigned_to', $user->id)
+            ->where('status', 'Resolved')
+            ->count();
+
+        $data['active_incidents'] = Incident::where('assigned_to', $user->id)
+            ->whereIn('status', ['Pending', 'Under Review'])
+            ->count();
+
+        return response()->json($data);
     }
 
-    // ==================== FORGOT PASSWORD (using default table) ====================
+    // ==================== FORGOT PASSWORD ====================
     public function forgotPassword(Request $request)
     {
         $request->validate(['email' => 'required|email']);

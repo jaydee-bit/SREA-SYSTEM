@@ -3,34 +3,46 @@ import 'package:srea_shared/srea_shared.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/incident_report_model.dart';
 import 'incident_detail_screen.dart';
-import 'notifications_screen.dart';
-import '../services/notification_service.dart';
+import '../services/api_service.dart';
 
-class IncidentListScreen extends StatefulWidget {
-  final String? initialFilter; // 'active', 'resolved', or null for all
-  final bool showAppBar; // whether to show its own app bar (default true)
+class IncidentListScreen extends StatelessWidget {
+  final String? initialFilter;
+  final bool assignedToMe;
   const IncidentListScreen({
     super.key,
     this.initialFilter,
-    this.showAppBar = true,
+    this.assignedToMe = false,
   });
 
   @override
-  State<IncidentListScreen> createState() => _IncidentListScreenState();
+  Widget build(BuildContext context) {
+    return _IncidentListBody(
+      initialFilter: initialFilter,
+      assignedToMe: assignedToMe,
+    );
+  }
 }
 
-class _IncidentListScreenState extends State<IncidentListScreen> {
-  List<IncidentReport> _incidents = [];
+class _IncidentListBody extends StatefulWidget {
+  final String? initialFilter;
+  final bool assignedToMe;
+  const _IncidentListBody({this.initialFilter, this.assignedToMe = false});
+
+  @override
+  State<_IncidentListBody> createState() => _IncidentListBodyState();
+}
+
+class _IncidentListBodyState extends State<_IncidentListBody> {
+  List<IncidentReport> _allIncidents = [];
+  bool _isLoading = true;
+  String? _error;
   String _filterStatus = 'All';
   String? _filterBarangay;
   String _filterReporter = 'All';
 
-  final ResponderNotificationService _notificationService =
-      ResponderNotificationService();
-
   final List<String> _statusOptions = [
     'All',
-    'Active', // pending + under review
+    'Active',
     'Pending',
     'Under Review',
     'Resolved',
@@ -82,80 +94,72 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadMockIncidents();
-    _applyInitialFilter();
-    // Ensure notification service has mock data
-    if (_notificationService.notifications.isEmpty) {
-      _notificationService.loadMockNotifications();
+    _loadIncidents();
+    if (widget.initialFilter == 'active') _filterStatus = 'Active';
+    if (widget.initialFilter == 'resolved') _filterStatus = 'Resolved';
+  }
+
+  Future<void> _loadIncidents() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final api = ApiService();
+      final data = await api.getIncidents(
+        assignedToMe: widget.assignedToMe,
+      ); // ✅ pass flag
+      final List<IncidentReport> incidents = data
+          .map(
+            (json) => IncidentReport(
+              id: json['id'].toString(),
+              type: json['type'] ?? '',
+              description: json['description'] ?? '',
+              photoPath: json['photo_path'],
+              barangay: json['barangay'] ?? '',
+              locationDetails: json['location_details'],
+              coordinates: LatLng(
+                double.parse(json['latitude'].toString()),
+                double.parse(json['longitude'].toString()),
+              ),
+              address: json['address'] ?? '',
+              status: json['status'] ?? 'Pending',
+              reportedAt: DateTime.parse(json['reported_at']),
+              personsInvolved: json['persons_involved'],
+              reporterRole: json['reporter']['role'] ?? '',
+              reporterIsVerified: json['reporter']['is_verified'] ?? false,
+              reporterName: json['reporter']['name'] ?? 'Unknown User',
+              responderNotes: json['responder_notes'],
+              escalationReason: json['escalation_reason'],
+              escalatedBy: json['escalated_by']?.toString(),
+              escalatedAt: json['escalated_at'],
+              resolutionNotes: json['resolution_notes'],
+              resolvedAt: json['resolved_at'] != null
+                  ? DateTime.parse(json['resolved_at'])
+                  : null,
+            ),
+          )
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _allIncidents = incidents;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('❌ ERROR in _loadIncidents: $e');
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
     }
   }
 
-  void _applyInitialFilter() {
-    if (widget.initialFilter == 'active') {
-      _filterStatus = 'Active';
-    } else if (widget.initialFilter == 'resolved') {
-      _filterStatus = 'Resolved';
-    }
-  }
-
-  void _loadMockIncidents() {
-    _incidents = [
-      IncidentReport(
-        id: '1',
-        type: 'Flooding',
-        description: 'Heavy flooding near the river. Several houses submerged.',
-        photoPath: null,
-        barangay: 'Poblacion',
-        locationDetails: 'Near the church',
-        coordinates: const LatLng(15.0153, 120.9996),
-        address: 'Poblacion, San Rafael',
-        status: 'Pending',
-        reportedAt: DateTime.now().subtract(const Duration(hours: 5)),
-        personsInvolved: 25,
-        reporterRole: 'resident',
-        reporterIsVerified: true,
-        responderNotes: null,
-      ),
-      IncidentReport(
-        id: '2',
-        type: 'Road Accident',
-        description:
-            'Two vehicles collided near the highway junction. Injuries reported.',
-        photoPath: null,
-        barangay: 'Sampaloc',
-        locationDetails: 'Highway junction',
-        coordinates: const LatLng(15.0153, 120.9996),
-        address: 'Sampaloc, San Rafael',
-        status: 'Pending',
-        reportedAt: DateTime.now().subtract(const Duration(hours: 2)),
-        personsInvolved: 3,
-        reporterRole: 'non_resident',
-        reporterIsVerified: false,
-        responderNotes: null,
-      ),
-      IncidentReport(
-        id: '3',
-        type: 'Fire',
-        description: 'Fire in a residential area. Firefighters are on site.',
-        photoPath: null,
-        barangay: 'Caingin',
-        locationDetails: 'Near the market',
-        coordinates: const LatLng(15.0153, 120.9996),
-        address: 'Caingin, San Rafael',
-        status: 'Under Review',
-        reportedAt: DateTime.now().subtract(const Duration(days: 1)),
-        personsInvolved: 0,
-        reporterRole: 'resident',
-        reporterIsVerified: false,
-        responderNotes: 'Dispatch team en route.',
-      ),
-    ];
-    setState(() {});
-  }
+  Future<void> _refresh() async => _loadIncidents();
 
   List<IncidentReport> get _filteredIncidents {
-    List<IncidentReport> filtered = List.from(_incidents);
-
+    List<IncidentReport> filtered = List.from(_allIncidents);
     if (_filterStatus != 'All') {
       if (_filterStatus == 'Active') {
         filtered = filtered
@@ -169,13 +173,11 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
             .toList();
       }
     }
-
     if (_filterBarangay != null && _filterBarangay != 'All') {
       filtered = filtered
           .where((inc) => inc.barangay == _filterBarangay)
           .toList();
     }
-
     switch (_filterReporter) {
       case 'Verified Resident':
         filtered = filtered
@@ -197,10 +199,7 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
             .where((inc) => inc.reporterRole != 'resident')
             .toList();
         break;
-      default:
-        break;
     }
-
     filtered.sort((a, b) {
       int getPriority(IncidentReport inc) {
         if (inc.status == 'Pending') return 0;
@@ -220,188 +219,158 @@ class _IncidentListScreenState extends State<IncidentListScreen> {
       }
       return b.reportedAt.compareTo(a.reportedAt);
     });
-
     return filtered;
   }
 
-  Widget _buildBody() {
-    final filtered = _filteredIncidents;
-    final unreadCount = _notificationService.unreadCount;
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const ColoredBox(
+        color: SreaColors.background,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header row with title and bell icon (only when showAppBar is false)
-        if (!widget.showAppBar)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    if (_error != null) {
+      return ColoredBox(
+        color: SreaColors.background,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  'Incidents',
-                  style: SreaText.headlineSmall(context).copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: SreaColors.textPrimary,
-                  ),
+                const Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: SreaColors.error,
                 ),
-                Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications_none_rounded),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const NotificationsScreen(),
-                          ),
-                        );
-                      },
-                      color: SreaColors.primary,
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: 4,
-                        top: 4,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: Text(
-                            unreadCount > 9 ? '9+' : '$unreadCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                  ],
+                const SizedBox(height: 16),
+                Text(
+                  'Error loading incidents',
+                  style: SreaText.titleLarge(
+                    context,
+                  ).copyWith(color: SreaColors.error),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: SreaText.bodySmall(
+                    context,
+                  ).copyWith(color: SreaColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _loadIncidents,
+                  child: const Text('Retry'),
                 ),
               ],
             ),
           ),
-        // Title when showAppBar is true (no bell here – optional, but we keep it simple)
-        if (widget.showAppBar)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Text(
-              'Incidents',
-              style: SreaText.headlineSmall(context).copyWith(
-                fontWeight: FontWeight.w800,
-                color: SreaColors.textPrimary,
-              ),
-            ),
-          ),
-        // Filters
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: SreaDropdown<String>(
-                      label: 'Status',
-                      hint: 'All',
-                      value: _filterStatus,
-                      items: _statusOptions,
-                      onChanged: (v) => setState(() => _filterStatus = v!),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SreaDropdown<String>(
-                      label: 'Barangay',
-                      hint: 'All',
-                      value: _filterBarangay ?? 'All',
-                      items: _barangayOptions,
-                      onChanged: (v) => setState(
-                        () => _filterBarangay = v == 'All' ? null : v,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              SreaDropdown<String>(
-                label: 'Reporter Type',
-                hint: 'All',
-                value: _filterReporter,
-                items: _reporterOptions,
-                onChanged: (v) => setState(() => _filterReporter = v!),
-              ),
-            ],
-          ),
         ),
-        Expanded(
-          child: filtered.isEmpty
-              ? Center(
-                  child: Text(
-                    'No incidents found',
-                    style: SreaText.bodyLarge(
-                      context,
-                    ).copyWith(color: SreaColors.textSecondary),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    final inc = filtered[index];
-                    return _IncidentCard(incident: inc);
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!widget.showAppBar) {
-      return Scaffold(
-        backgroundColor: SreaColors.background,
-        body: _buildBody(),
       );
     }
 
-    final canPop = Navigator.canPop(context);
-    return Scaffold(
-      backgroundColor: SreaColors.background,
-      appBar: AppBar(
-        toolbarHeight: 48,
-        leading: canPop
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                onPressed: () => Navigator.pop(context),
-                color: SreaColors.textOnPrimary,
-              )
-            : null,
-        backgroundColor: SreaColors.primary,
-        elevation: 0,
-        title: null,
+    return ColoredBox(
+      color: SreaColors.background,
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              // Filters
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SreaDropdown<String>(
+                            label: 'Status',
+                            hint: 'All',
+                            value: _filterStatus,
+                            items: _statusOptions,
+                            onChanged: (v) =>
+                                setState(() => _filterStatus = v!),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SreaDropdown<String>(
+                            label: 'Barangay',
+                            hint: 'All',
+                            value: _filterBarangay ?? 'All',
+                            items: _barangayOptions,
+                            onChanged: (v) => setState(
+                              () => _filterBarangay = v == 'All' ? null : v,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SreaDropdown<String>(
+                      label: 'Reporter Type',
+                      hint: 'All',
+                      value: _filterReporter,
+                      items: _reporterOptions,
+                      onChanged: (v) => setState(() => _filterReporter = v!),
+                    ),
+                  ],
+                ),
+              ),
+              // Incident list
+              _filteredIncidents.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Center(child: Text('No incidents found')),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(12),
+                      itemCount: _filteredIncidents.length,
+                      itemBuilder: (context, index) =>
+                          _IncidentCard(incident: _filteredIncidents[index]),
+                    ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
       ),
-      body: _buildBody(),
     );
   }
 }
 
-// _IncidentCard class unchanged – included for completeness
+// ---------- Incident Card (unchanged) ----------
 class _IncidentCard extends StatelessWidget {
   final IncidentReport incident;
   const _IncidentCard({required this.incident});
 
+  String _getThumbnailUrl() {
+    final path = incident.photoPath;
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http')) return path;
+    final base = ApiService.baseImageUrl.endsWith('/')
+        ? ApiService.baseImageUrl.substring(
+            0,
+            ApiService.baseImageUrl.length - 1,
+          )
+        : ApiService.baseImageUrl;
+    final normalizedPath = path.startsWith('/') ? path : '/$path';
+    return '$base$normalizedPath';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final thumbSize = width * 0.19;
+    final thumbRadius = width * 0.018;
+    final innerGap = width * 0.012;
+
     String reporterLabel;
     Color reporterColor;
     if (incident.reporterRole == 'resident') {
@@ -417,99 +386,192 @@ class _IncidentCard extends StatelessWidget {
       reporterColor = SreaColors.textHint;
     }
 
-    String dateStr =
-        '${_monthAbbr(incident.reportedAt.month)} ${incident.reportedAt.day}, ${incident.reportedAt.year}';
+    final description = incident.description.length > 120
+        ? '${incident.description.substring(0, 120)}...'
+        : incident.description;
+    final thumbnailUrl = _getThumbnailUrl();
+    final hasPhoto = thumbnailUrl.isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: SreaSpacing.sm(context)),
       child: SreaCard(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => IncidentDetailScreen(incident: incident),
-            ),
-          );
-        },
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => IncidentDetailScreen(incident: incident),
+          ),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
-                    incident.type,
-                    style: SreaText.bodyLarge(
-                      context,
-                    ).copyWith(fontWeight: FontWeight.w700),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        incident.type,
+                        style: SreaText.bodyLarge(
+                          context,
+                        ).copyWith(fontWeight: FontWeight.w700),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Reported by: ${incident.reporterName}',
+                        style: SreaText.label(context).copyWith(
+                          color: SreaColors.textSecondary,
+                          fontSize: width * 0.025,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                SreaBadge(
-                  type: _statusToBadgeType(incident.status),
-                  label: incident.status,
-                  showDot: true,
+                SizedBox(width: width * 0.02),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    SreaBadge(
+                      type: _statusToBadgeType(incident.status),
+                      label: incident.status,
+                      showDot: true,
+                    ),
+                    SizedBox(height: width * 0.008),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: width * 0.015,
+                        vertical: width * 0.005,
+                      ),
+                      decoration: BoxDecoration(
+                        color: reporterColor.withValues(alpha: 0.1),
+                        borderRadius: SreaRadius.pill,
+                        border: reporterLabel == 'Non-Resident'
+                            ? Border.all(color: SreaColors.border, width: 0.5)
+                            : null,
+                      ),
+                      child: Text(
+                        reporterLabel,
+                        style: SreaText.label(context).copyWith(
+                          color: reporterColor,
+                          fontSize: width * 0.022,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              incident.barangay,
-              style: SreaText.bodySmall(
-                context,
-              ).copyWith(color: SreaColors.textSecondary),
-            ),
-            const SizedBox(height: 4),
+            SizedBox(height: innerGap),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: reporterColor.withValues(alpha: 0.1),
-                    borderRadius: SreaRadius.pill,
-                  ),
-                  child: Text(
-                    reporterLabel,
-                    style: SreaText.label(
-                      context,
-                    ).copyWith(color: reporterColor, fontSize: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${incident.barangay}  ·  ${_formatDate(incident.reportedAt)}',
+                        style: SreaText.label(
+                          context,
+                        ).copyWith(color: SreaColors.textSecondary),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      SizedBox(height: innerGap),
+                      Text(
+                        description,
+                        style: SreaText.bodySmall(context).copyWith(
+                          color: SreaColors.textSecondary,
+                          height: 1.45,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (incident.locationDetails != null &&
+                          incident.locationDetails!.isNotEmpty) ...[
+                        SizedBox(height: innerGap),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: width * 0.03,
+                              color: SreaColors.textHint,
+                            ),
+                            SizedBox(width: width * 0.01),
+                            Expanded(
+                              child: Text(
+                                incident.locationDetails!,
+                                style: SreaText.label(
+                                  context,
+                                ).copyWith(color: SreaColors.textHint),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                const Spacer(),
-                Icon(
-                  Icons.calendar_today_outlined,
-                  size: 12,
-                  color: SreaColors.textHint,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  dateStr,
-                  style: SreaText.label(
-                    context,
-                  ).copyWith(color: SreaColors.textHint),
+                SizedBox(width: SreaSpacing.sm(context)),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(thumbRadius),
+                  child: Container(
+                    width: thumbSize,
+                    height: thumbSize,
+                    color: SreaColors.surfaceVariant,
+                    child: hasPhoto
+                        ? Image.network(
+                            thumbnailUrl,
+                            fit: BoxFit.cover,
+                            cacheWidth: thumbSize.round(),
+                            cacheHeight: thumbSize.round(),
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.broken_image_outlined,
+                              size: thumbSize * 0.42,
+                              color: SreaColors.textHint,
+                            ),
+                          )
+                        : Icon(
+                            Icons.image_not_supported_outlined,
+                            size: thumbSize * 0.42,
+                            color: SreaColors.textHint,
+                          ),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              incident.description.length > 100
-                  ? '${incident.description.substring(0, 100)}...'
-                  : incident.description,
-              style: SreaText.bodySmall(
-                context,
-              ).copyWith(color: SreaColors.textSecondary),
-            ),
-            const SizedBox(height: 8),
+            SizedBox(height: innerGap * 1.2),
+            const Divider(height: 1, color: SreaColors.divider),
+            SizedBox(height: innerGap),
             Align(
               alignment: Alignment.centerRight,
-              child: Text(
-                'View details →',
-                style: SreaText.label(context).copyWith(
-                  color: SreaColors.primary,
-                  fontWeight: FontWeight.w600,
+              child: TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => IncidentDetailScreen(incident: incident),
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: SreaSpacing.sm(context),
+                    vertical: width * 0.012,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'View details →',
+                  style: SreaText.label(context).copyWith(
+                    color: SreaColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -519,19 +581,8 @@ class _IncidentCard extends StatelessWidget {
     );
   }
 
-  SreaBadgeType _statusToBadgeType(String status) {
-    switch (status.toLowerCase()) {
-      case 'resolved':
-        return SreaBadgeType.resolved;
-      case 'rejected':
-        return SreaBadgeType.rejected;
-      case 'under review':
-        return SreaBadgeType.underReview;
-      default:
-        return SreaBadgeType.pending;
-    }
-  }
-
+  String _formatDate(DateTime date) =>
+      '${_monthAbbr(date.month)} ${date.day}, ${date.year}';
   String _monthAbbr(int m) => const [
     'Jan',
     'Feb',
@@ -546,4 +597,17 @@ class _IncidentCard extends StatelessWidget {
     'Nov',
     'Dec',
   ][m - 1];
+
+  SreaBadgeType _statusToBadgeType(String status) {
+    switch (status.toLowerCase()) {
+      case 'resolved':
+        return SreaBadgeType.resolved;
+      case 'rejected':
+        return SreaBadgeType.rejected;
+      case 'under review':
+        return SreaBadgeType.underReview;
+      default:
+        return SreaBadgeType.pending;
+    }
+  }
 }

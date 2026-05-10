@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'dart:io';
 import '../models/incident_report_model.dart';
+import '../services/api_service.dart';
 
 class IncidentDetailScreen extends StatefulWidget {
   final IncidentReport incident;
@@ -18,8 +18,43 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
   late TextEditingController _notesController;
   bool _isUpdating = false;
 
-  String? _selectedReassignReason;
-  final TextEditingController _otherReasonController = TextEditingController();
+  String _getFullPhotoUrl() {
+    final path = _incident.photoPath;
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http')) return path;
+    final base = ApiService.baseImageUrl.endsWith('/')
+        ? ApiService.baseImageUrl.substring(
+            0,
+            ApiService.baseImageUrl.length - 1,
+          )
+        : ApiService.baseImageUrl;
+    final normalizedPath = path.startsWith('/') ? path : '/$path';
+    return '$base$normalizedPath';
+  }
+
+  void _showFullPhoto(String url) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: InteractiveViewer(
+            panEnabled: true,
+            scaleEnabled: true,
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Center(
+                child: Icon(Icons.broken_image, size: 60, color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -33,89 +68,69 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
   @override
   void dispose() {
     _notesController.dispose();
-    _otherReasonController.dispose();
     super.dispose();
   }
 
   Future<void> _performUpdate(
-    Map<String, dynamic> updates,
+    Future<void> Function() apiCall,
     String snackbarMessage,
     Color snackbarColor,
   ) async {
+    if (_isUpdating) return;
     setState(() => _isUpdating = true);
-
-    final updatedIncident = IncidentReport(
-      id: _incident.id,
-      type: _incident.type,
-      description: _incident.description,
-      photoPath: _incident.photoPath,
-      barangay: _incident.barangay,
-      locationDetails: _incident.locationDetails,
-      coordinates: _incident.coordinates,
-      address: _incident.address,
-      status: updates['status'] ?? _incident.status,
-      reportedAt: _incident.reportedAt,
-      personsInvolved: updates['personsInvolved'] ?? _incident.personsInvolved,
-      reporterRole: _incident.reporterRole,
-      reporterIsVerified: _incident.reporterIsVerified,
-      responderNotes: updates['responderNotes'] ?? _notesController.text,
-      escalationReason:
-          updates['escalationReason'] ?? _incident.escalationReason,
-      escalatedBy: updates['escalatedBy'] ?? _incident.escalatedBy,
-      escalatedAt: updates['escalatedAt'] ?? _incident.escalatedAt,
-      resolutionNotes: updates['resolutionNotes'] ?? _incident.resolutionNotes,
-      resolvedAt: updates['resolvedAt'] != null
-          ? DateTime.parse(updates['resolvedAt'])
-          : _incident.resolvedAt,
-    );
-    setState(() => _incident = updatedIncident);
-    _isUpdating = false;
-
-    await Future.delayed(const Duration(milliseconds: 500));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          snackbarMessage,
-          style: SreaText.bodySmall(context).copyWith(color: Colors.white),
+    try {
+      await apiCall();
+      final api = ApiService();
+      final data = await api.getIncident(int.parse(_incident.id));
+      final updated = IncidentReport(
+        id: data['id'].toString(),
+        type: data['type'] ?? '',
+        description: data['description'] ?? '',
+        photoPath: data['photo_path'],
+        barangay: data['barangay'] ?? '',
+        locationDetails: data['location_details'],
+        coordinates: LatLng(
+          double.parse(data['latitude'].toString()),
+          double.parse(data['longitude'].toString()),
         ),
-        backgroundColor: snackbarColor,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: SreaRadius.input),
-      ),
-    );
-  }
-
-  Widget _buildResponsiveButtonRow({
-    Key? key,
-    required Widget primaryButton,
-    required Widget secondaryButton,
-    double spacing = 12,
-  }) {
-    return LayoutBuilder(
-      key: key,
-      builder: (context, constraints) {
-        const double approxButtonWidth = 140;
-        final neededWidth = approxButtonWidth * 2 + spacing;
-        if (constraints.maxWidth >= neededWidth) {
-          return Row(
-            children: [
-              Expanded(child: primaryButton),
-              SizedBox(width: spacing),
-              Expanded(child: secondaryButton),
-            ],
-          );
-        } else {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              primaryButton,
-              SizedBox(height: spacing),
-              secondaryButton,
-            ],
-          );
-        }
-      },
-    );
+        address: data['address'] ?? '',
+        status: data['status'] ?? 'Pending',
+        reportedAt: DateTime.parse(data['reported_at']),
+        personsInvolved: data['persons_involved'],
+        reporterRole: data['reporter']['role'] ?? '',
+        reporterIsVerified: data['reporter']['is_verified'] ?? false,
+        reporterName: data['reporter']['name'] ?? 'Unknown User', // ✅
+        responderNotes: data['responder_notes'],
+        escalationReason: data['escalation_reason'],
+        escalatedBy: data['escalated_by']?.toString(),
+        escalatedAt: data['escalated_at'],
+        resolutionNotes: data['resolution_notes'],
+        resolvedAt: data['resolved_at'] != null
+            ? DateTime.parse(data['resolved_at'])
+            : null,
+      );
+      setState(() {
+        _incident = updated;
+        _notesController.text = updated.responderNotes ?? '';
+        _isUpdating = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(snackbarMessage),
+          backgroundColor: snackbarColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      setState(() => _isUpdating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Action failed. Please try again.'),
+          backgroundColor: SreaColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _showRespondBottomSheet() {
@@ -152,7 +167,9 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
                   onPressed: () async {
                     Navigator.pop(context);
                     await _performUpdate(
-                      {'status': 'Under Review'}, // ✅ consistent status
+                      () => ApiService().respondToIncident(
+                        int.parse(_incident.id),
+                      ),
                       'You are now assigned to this incident',
                       SreaColors.primary,
                     );
@@ -172,125 +189,118 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
     );
   }
 
-  bool get _isReassignReasonValid =>
-      _selectedReassignReason != null &&
-      (_selectedReassignReason != 'Other' ||
-          _otherReasonController.text.trim().isNotEmpty);
-
   void _showReassignBottomSheet() {
-    _selectedReassignReason = null;
-    _otherReasonController.clear();
+    String? selectedReason;
+    final otherController = TextEditingController();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: RoundedRectangleBorder(borderRadius: SreaRadius.bottomSheet),
       builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Padding(
-            padding: SreaSpacing.bottomSheetPadding(context),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const _DragHandle(),
-                const SizedBox(height: 8),
-                Text(
-                  'Reassign Incident',
-                  style: SreaText.titleLarge(
-                    context,
-                  ).copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Select a reason for reassigning this incident to the admin.',
-                  style: SreaText.bodySmall(
-                    context,
-                  ).copyWith(color: SreaColors.textSecondary),
-                ),
-                const SizedBox(height: 20),
-                SreaRadioGroup<String>(
-                  groupValue: _selectedReassignReason,
-                  onChanged: (value) =>
-                      setSheetState(() => _selectedReassignReason = value),
-                  options: const [
-                    SreaRadioItem(
-                      value: 'Hands full — please assign to another responder',
-                      label: 'Hands full — please assign to another responder',
-                    ),
-                    SreaRadioItem(
-                      value: 'Outside my jurisdiction or barangay',
-                      label: 'Outside my jurisdiction or barangay',
-                    ),
-                    SreaRadioItem(
-                      value: 'Requires additional resources or authority',
-                      label: 'Requires additional resources or authority',
-                    ),
-                    SreaRadioItem(
-                      value: 'Duplicate or related to another active incident',
-                      label: 'Duplicate or related to another active incident',
-                    ),
-                    SreaRadioItem(value: 'Other', label: 'Other'),
-                  ],
-                ),
-                if (_selectedReassignReason == 'Other') ...[
-                  const SizedBox(height: 12),
-                  SreaTextField(
-                    label: 'Please specify',
-                    hint: 'Enter reason...',
-                    controller: _otherReasonController,
-                    onChanged: (_) => setSheetState(() {}),
+        builder: (context, setSheetState) => Padding(
+          padding: SreaSpacing.bottomSheetPadding(context),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _DragHandle(),
+              const SizedBox(height: 8),
+              Text(
+                'Reassign Incident',
+                style: SreaText.titleLarge(
+                  context,
+                ).copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Select a reason for reassigning this incident.',
+                style: SreaText.bodySmall(
+                  context,
+                ).copyWith(color: SreaColors.textSecondary),
+              ),
+              const SizedBox(height: 20),
+              SreaRadioGroup<String>(
+                groupValue: selectedReason,
+                onChanged: (value) =>
+                    setSheetState(() => selectedReason = value),
+                options: const [
+                  SreaRadioItem(
+                    value: 'Hands full — please assign to another responder',
+                    label: 'Hands full — please assign to another responder',
                   ),
+                  SreaRadioItem(
+                    value: 'Outside my jurisdiction or barangay',
+                    label: 'Outside my jurisdiction or barangay',
+                  ),
+                  SreaRadioItem(
+                    value: 'Requires additional resources or authority',
+                    label: 'Requires additional resources or authority',
+                  ),
+                  SreaRadioItem(
+                    value: 'Duplicate or related to another active incident',
+                    label: 'Duplicate or related to another active incident',
+                  ),
+                  SreaRadioItem(value: 'Other', label: 'Other'),
                 ],
-                const SizedBox(height: 24),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ElevatedButton(
-                      onPressed: _isReassignReasonValid && !_isUpdating
-                          ? () async {
-                              Navigator.pop(context);
-                              final reason = _selectedReassignReason == 'Other'
-                                  ? _otherReasonController.text.trim()
-                                  : _selectedReassignReason!;
-                              await _performUpdate(
-                                {
-                                  'status': 'Escalated', // ✅ consistent
-                                  'escalationReason': reason,
-                                  'escalatedBy': 'Current Responder',
-                                  'escalatedAt': DateTime.now()
-                                      .toIso8601String(),
-                                },
-                                'Incident has been reassigned to admin',
-                                SreaColors.high,
-                              );
-                            }
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: SreaColors.high,
-                        foregroundColor: SreaColors.textOnPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: SreaRadius.button,
-                        ),
-                        padding: SreaSpacing.buttonPadding(context),
-                        minimumSize: const Size(0, 48),
-                      ),
-                      child: Text(
-                        'Confirm Reassign',
-                        style: SreaText.label(
-                          context,
-                        ).copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SreaButton.outline(
-                      label: 'Cancel',
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
+              ),
+              if (selectedReason == 'Other') ...[
+                const SizedBox(height: 12),
+                SreaTextField(
+                  label: 'Please specify',
+                  hint: 'Enter reason...',
+                  controller: otherController,
+                  onChanged: (_) => setSheetState(() {}),
                 ),
               ],
-            ),
-          );
-        },
+              const SizedBox(height: 24),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ElevatedButton(
+                    onPressed:
+                        selectedReason != null &&
+                            (selectedReason != 'Other' ||
+                                otherController.text.trim().isNotEmpty)
+                        ? () async {
+                            final reason = selectedReason == 'Other'
+                                ? otherController.text.trim()
+                                : selectedReason!;
+                            Navigator.pop(context);
+                            await _performUpdate(
+                              () => ApiService().reassignIncident(
+                                int.parse(_incident.id),
+                                reason,
+                              ),
+                              'Incident has been reassigned to admin',
+                              SreaColors.high,
+                            );
+                          }
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: SreaColors.high,
+                      foregroundColor: SreaColors.textOnPrimary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: SreaRadius.button,
+                      ),
+                      padding: SreaSpacing.buttonPadding(context),
+                      minimumSize: const Size(0, 48),
+                    ),
+                    child: Text(
+                      'Confirm Reassign',
+                      style: SreaText.label(
+                        context,
+                      ).copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SreaButton.outline(
+                    label: 'Cancel',
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -299,109 +309,100 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
     final actualPersonsController = TextEditingController();
     final actionsController = TextEditingController();
     bool canResolve = false;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: RoundedRectangleBorder(borderRadius: SreaRadius.bottomSheet),
       builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Padding(
-            padding: SreaSpacing.bottomSheetPadding(context),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const _DragHandle(),
-                const SizedBox(height: 8),
-                Text(
-                  'Mark as Resolved',
-                  style: SreaText.titleLarge(
-                    context,
-                  ).copyWith(fontWeight: FontWeight.w700),
+        builder: (context, setSheetState) => Padding(
+          padding: SreaSpacing.bottomSheetPadding(context),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _DragHandle(),
+              const SizedBox(height: 8),
+              Text(
+                'Mark as Resolved',
+                style: SreaText.titleLarge(
+                  context,
+                ).copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Provide verified data and actions taken.',
+                style: SreaText.bodySmall(
+                  context,
+                ).copyWith(color: SreaColors.textSecondary),
+              ),
+              const SizedBox(height: 20),
+              SreaTextField(
+                label: 'Reported persons involved (from resident)',
+                hint: 'Reported number',
+                controller: TextEditingController(
+                  text:
+                      _incident.personsInvolved?.toString() ?? 'Not specified',
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Provide verified data and actions taken.',
-                  style: SreaText.bodySmall(
-                    context,
-                  ).copyWith(color: SreaColors.textSecondary),
+                enabled: false,
+              ),
+              const SizedBox(height: 12),
+              SreaTextField(
+                label: 'Actual persons involved (verified by you) *',
+                hint: 'Enter verified count',
+                controller: actualPersonsController,
+                keyboardType: TextInputType.number,
+                required: true,
+                onChanged: (_) => setSheetState(
+                  () => canResolve = actualPersonsController.text
+                      .trim()
+                      .isNotEmpty,
                 ),
-                const SizedBox(height: 20),
-
-                // Read‑only reported persons
-                SreaTextField(
-                  label: 'Reported persons involved (from resident)',
-                  hint: 'Reported number',
-                  controller: TextEditingController(
-                    text:
-                        _incident.personsInvolved?.toString() ??
-                        'Not specified',
+              ),
+              const SizedBox(height: 12),
+              SreaTextField(
+                label: 'Actions taken / Resolution notes (optional)',
+                hint: 'Describe what was done',
+                controller: actionsController,
+                maxLines: 3,
+              ),
+              const SizedBox(height: 24),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SreaButton.update(
+                    label: 'Confirm Resolve',
+                    onPressed: canResolve
+                        ? () async {
+                            final actualPersons =
+                                int.tryParse(
+                                  actualPersonsController.text.trim(),
+                                ) ??
+                                0;
+                            final actions = actionsController.text.trim();
+                            Navigator.pop(context);
+                            await _performUpdate(
+                              () => ApiService().resolveIncident(
+                                int.parse(_incident.id),
+                                actualPersons,
+                                resolutionNotes: actions.isNotEmpty
+                                    ? actions
+                                    : null,
+                              ),
+                              'Incident marked as resolved',
+                              SreaColors.buttonUpdate,
+                            );
+                          }
+                        : null,
                   ),
-                  enabled: false,
-                ),
-                const SizedBox(height: 12),
-
-                // Required: actual verified count
-                SreaTextField(
-                  label: 'Actual persons involved (verified by you) *',
-                  hint: 'Enter verified count',
-                  controller: actualPersonsController,
-                  keyboardType: TextInputType.number,
-                  required: true,
-                  onChanged: (_) => setSheetState(() {
-                    canResolve = actualPersonsController.text.trim().isNotEmpty;
-                  }),
-                ),
-                const SizedBox(height: 12),
-
-                // Optional: actions taken / resolution notes
-                SreaTextField(
-                  label: 'Actions taken / Resolution notes (optional)',
-                  hint: 'Describe what was done',
-                  controller: actionsController,
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 24),
-
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SreaButton.update(
-                      label: 'Confirm Resolve',
-                      onPressed: canResolve && !_isUpdating
-                          ? () async {
-                              Navigator.pop(context);
-                              final actualPersons = int.tryParse(
-                                actualPersonsController.text.trim(),
-                              );
-                              final actions = actionsController.text.trim();
-                              await _performUpdate(
-                                {
-                                  'status': 'Resolved', // ✅ consistent
-                                  'personsInvolved': actualPersons,
-                                  'resolutionNotes': actions.isNotEmpty
-                                      ? actions
-                                      : null,
-                                  'resolvedAt': DateTime.now()
-                                      .toIso8601String(),
-                                },
-                                'Incident marked as resolved',
-                                SreaColors.buttonUpdate,
-                              );
-                            }
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    SreaButton.outline(
-                      label: 'Cancel',
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: 12),
+                  SreaButton.outline(
+                    label: 'Cancel',
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -414,248 +415,236 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
       isScrollControlled: true,
       shape: RoundedRectangleBorder(borderRadius: SreaRadius.bottomSheet),
       builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Padding(
-            padding: SreaSpacing.bottomSheetPadding(context),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const _DragHandle(),
-                const SizedBox(height: 8),
-                Text(
-                  _notesController.text.isEmpty ? 'Add Notes' : 'Edit Notes',
-                  style: SreaText.titleLarge(
-                    context,
-                  ).copyWith(fontWeight: FontWeight.w700),
+        builder: (context, setSheetState) => Padding(
+          padding: SreaSpacing.bottomSheetPadding(context),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _DragHandle(),
+              const SizedBox(height: 8),
+              Text(
+                _incident.responderNotes == null ? 'Add Notes' : 'Edit Notes',
+                style: SreaText.titleLarge(
+                  context,
+                ).copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Add internal notes. These are only visible to responders and admins.',
+                style: SreaText.bodySmall(
+                  context,
+                ).copyWith(color: SreaColors.textSecondary),
+              ),
+              const SizedBox(height: 20),
+              SreaTextField(
+                label: 'Responder Notes',
+                hint: 'Enter notes...',
+                controller: notesController,
+                maxLines: 4,
+                required: true,
+                onChanged: (_) => setSheetState(
+                  () => canSave = notesController.text.trim().isNotEmpty,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Add internal notes about this incident. These notes are only visible to responders and admins.',
-                  style: SreaText.bodySmall(
-                    context,
-                  ).copyWith(color: SreaColors.textSecondary),
-                ),
-                const SizedBox(height: 20),
-                SreaTextField(
-                  label: 'Responder Notes',
-                  hint: 'Enter notes...',
-                  controller: notesController,
-                  maxLines: 4,
-                  required: true,
-                  onChanged: (_) => setSheetState(
-                    () => canSave = notesController.text.trim().isNotEmpty,
+              ),
+              const SizedBox(height: 24),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SreaButton(
+                    label: 'Save Notes',
+                    onPressed: canSave
+                        ? () async {
+                            Navigator.pop(context);
+                            await _performUpdate(
+                              () => ApiService().addResponderNotes(
+                                int.parse(_incident.id),
+                                notesController.text.trim(),
+                              ),
+                              'Notes saved successfully',
+                              SreaColors.primary,
+                            );
+                          }
+                        : null,
+                    type: SreaButtonType.primary,
+                    icon: Icons.note_add_rounded,
                   ),
-                ),
-                const SizedBox(height: 24),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SreaButton(
-                      label: 'Save Notes',
-                      onPressed: canSave && !_isUpdating
-                          ? () async {
-                              Navigator.pop(context);
-                              await _performUpdate(
-                                {'responderNotes': notesController.text.trim()},
-                                'Notes saved successfully',
-                                SreaColors.primary,
-                              );
-                              _notesController.text = notesController.text
-                                  .trim();
-                            }
-                          : null,
-                      type: SreaButtonType.primary,
-                      icon: Icons.note_add_rounded,
-                    ),
-                    const SizedBox(height: 12),
-                    SreaButton.outline(
-                      label: 'Cancel',
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: 12),
+                  SreaButton.outline(
+                    label: 'Cancel',
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildActionButtons(BuildContext context) {
-    // Normalise status for safety (but we now use exact strings)
-    final String status = _incident.status;
+    final status = _incident.status;
     switch (status) {
       case 'Pending':
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: _buildResponsiveButtonRow(
-            key: const ValueKey('pending'),
-            primaryButton: SreaButton(
-              label: 'Respond',
-              onPressed: _isUpdating ? null : _showRespondBottomSheet,
-              type: SreaButtonType.primary,
-              icon: Icons.assignment_turned_in_rounded,
-            ),
-            secondaryButton: ElevatedButton(
-              onPressed: _isUpdating ? null : _showReassignBottomSheet,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: SreaColors.high,
-                foregroundColor: SreaColors.textOnPrimary,
-                shape: RoundedRectangleBorder(borderRadius: SreaRadius.button),
-                padding: SreaSpacing.buttonPadding(context),
-                minimumSize: const Size(0, 48),
+        return Column(
+          children: [
+            _buildResponsiveButtonRow(
+              primaryButton: SreaButton(
+                label: 'Respond',
+                onPressed: _isUpdating ? null : _showRespondBottomSheet,
+                type: SreaButtonType.primary,
+                icon: Icons.assignment_turned_in_rounded,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.swap_horiz_rounded, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Reassign',
-                    style: SreaText.label(
-                      context,
-                    ).copyWith(fontWeight: FontWeight.w700),
+              secondaryButton: ElevatedButton(
+                onPressed: _isUpdating ? null : _showReassignBottomSheet,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: SreaColors.high,
+                  foregroundColor: SreaColors.textOnPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: SreaRadius.button,
                   ),
-                ],
+                  padding: SreaSpacing.buttonPadding(context),
+                  minimumSize: const Size(0, 48),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.swap_horiz_rounded, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Reassign',
+                      style: SreaText.label(
+                        context,
+                      ).copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         );
       case 'Under Review':
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: Column(
-            key: const ValueKey('under_review'),
-            children: [
-              _buildResponsiveButtonRow(
-                primaryButton: SreaButton.update(
-                  label: 'Resolve',
-                  onPressed: _isUpdating ? null : _showResolveBottomSheet,
-                  icon: Icons.check_circle_outline_rounded,
+        return Column(
+          children: [
+            _buildResponsiveButtonRow(
+              primaryButton: SreaButton.update(
+                label: 'Resolve',
+                onPressed: _isUpdating ? null : _showResolveBottomSheet,
+                icon: Icons.check_circle_outline_rounded,
+              ),
+              secondaryButton: ElevatedButton(
+                onPressed: _isUpdating ? null : _showReassignBottomSheet,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: SreaColors.high,
+                  foregroundColor: SreaColors.textOnPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: SreaRadius.button,
+                  ),
+                  padding: SreaSpacing.buttonPadding(context),
+                  minimumSize: const Size(0, 48),
                 ),
-                secondaryButton: ElevatedButton(
-                  onPressed: _isUpdating ? null : _showReassignBottomSheet,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: SreaColors.high,
-                    foregroundColor: SreaColors.textOnPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: SreaRadius.button,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.swap_horiz_rounded, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Reassign',
+                      style: SreaText.label(
+                        context,
+                      ).copyWith(fontWeight: FontWeight.w700),
                     ),
-                    padding: SreaSpacing.buttonPadding(context),
-                    minimumSize: const Size(0, 48),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.swap_horiz_rounded, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Reassign',
-                        style: SreaText.label(
-                          context,
-                        ).copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              SreaButton.outline(
-                label: 'Add Notes',
-                onPressed: _isUpdating ? null : _showAddEditNotesBottomSheet,
-                fullWidth: true,
-                icon: Icons.note_add_rounded,
+            ),
+            const SizedBox(height: 12),
+            SreaButton.outline(
+              label: 'Add Notes',
+              onPressed: _isUpdating ? null : _showAddEditNotesBottomSheet,
+              fullWidth: true,
+              icon: Icons.note_add_rounded,
+            ),
+          ],
+        );
+      case 'Escalated':
+        return Container(
+          padding: SreaSpacing.cardPaddingSmall(context),
+          decoration: BoxDecoration(
+            color: SreaColors.highBg,
+            borderRadius: SreaRadius.card,
+            border: Border.all(color: SreaColors.high.withOpacity(0.4)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline_rounded,
+                color: SreaColors.high,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Incident Reassigned',
+                      style: SreaText.bodySmall(context).copyWith(
+                        color: SreaColors.high,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      'This incident has been reassigned to admin. Waiting for a new responder.',
+                      style: SreaText.label(
+                        context,
+                      ).copyWith(color: SreaColors.high),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         );
-      case 'Escalated':
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: Container(
-            key: const ValueKey('escalated'),
-            padding: SreaSpacing.cardPaddingSmall(context),
-            decoration: BoxDecoration(
-              color: SreaColors.highBg,
-              borderRadius: SreaRadius.card,
-              border: Border.all(color: SreaColors.high.withOpacity(0.4)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  color: SreaColors.high,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Incident Reassigned',
-                        style: SreaText.bodySmall(context).copyWith(
-                          color: SreaColors.high,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        'This incident has been reassigned to admin. Waiting for a new responder to be assigned.',
-                        style: SreaText.label(
-                          context,
-                        ).copyWith(color: SreaColors.high),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
       case 'Resolved':
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: Container(
-            key: const ValueKey('resolved'),
-            padding: SreaSpacing.cardPaddingSmall(context),
-            decoration: BoxDecoration(
-              color: SreaColors.lowBg,
-              borderRadius: SreaRadius.card,
-              border: Border.all(color: SreaColors.low.withOpacity(0.4)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.check_circle_outline_rounded,
-                  color: SreaColors.low,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Incident Resolved',
-                        style: SreaText.bodySmall(context).copyWith(
-                          color: SreaColors.low,
-                          fontWeight: FontWeight.w700,
-                        ),
+        return Container(
+          padding: SreaSpacing.cardPaddingSmall(context),
+          decoration: BoxDecoration(
+            color: SreaColors.lowBg,
+            borderRadius: SreaRadius.card,
+            border: Border.all(color: SreaColors.low.withOpacity(0.4)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.check_circle_outline_rounded,
+                color: SreaColors.low,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Incident Resolved',
+                      style: SreaText.bodySmall(context).copyWith(
+                        color: SreaColors.low,
+                        fontWeight: FontWeight.w700,
                       ),
-                      Text(
-                        'This incident has been marked as resolved. No further action is required.',
-                        style: SreaText.label(
-                          context,
-                        ).copyWith(color: SreaColors.low),
-                      ),
-                    ],
-                  ),
+                    ),
+                    Text(
+                      'This incident has been marked as resolved. No further action is required.',
+                      style: SreaText.label(
+                        context,
+                      ).copyWith(color: SreaColors.low),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       default:
@@ -663,11 +652,40 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
     }
   }
 
+  Widget _buildResponsiveButtonRow({
+    required Widget primaryButton,
+    required Widget secondaryButton,
+    double spacing = 12,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const approxButtonWidth = 140.0;
+        final neededWidth = approxButtonWidth * 2 + spacing;
+        if (constraints.maxWidth >= neededWidth) {
+          return Row(
+            children: [
+              Expanded(child: primaryButton),
+              SizedBox(width: spacing),
+              Expanded(child: secondaryButton),
+            ],
+          );
+        } else {
+          return Column(
+            children: [
+              primaryButton,
+              SizedBox(height: spacing),
+              secondaryButton,
+            ],
+          );
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isResolvedOrEscalated =
-        _incident.status == 'Resolved' || _incident.status == 'Escalated';
-    final hasNotes = _notesController.text.trim().isNotEmpty;
+    final fullPhotoUrl = _getFullPhotoUrl();
+    final hasPhoto = fullPhotoUrl.isNotEmpty;
 
     return Scaffold(
       backgroundColor: SreaColors.background,
@@ -688,18 +706,19 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
           ).copyWith(color: SreaColors.textOnPrimary),
         ),
         actions: [
-          if (_isUpdating)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              ),
-            ),
+          _isUpdating
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
         ],
       ),
       body: SafeArea(
@@ -726,7 +745,16 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 4),
+              // ✅ Reporter name added here
+              Text(
+                'Reported by: ${_incident.reporterName}',
+                style: SreaText.bodySmall(context).copyWith(
+                  color: SreaColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -835,7 +863,7 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
                   ],
                 ),
               ],
-              if (_incident.photoPath != null) ...[
+              if (hasPhoto) ...[
                 const SizedBox(height: 20),
                 Text(
                   'Photo',
@@ -844,15 +872,21 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
                   ).copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(SreaRadius.md),
-                  child: Image.file(
-                    File(_incident.photoPath!),
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.broken_image, size: 100),
+                GestureDetector(
+                  onTap: () => _showFullPhoto(fullPhotoUrl),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(SreaRadius.md),
+                    child: Image.network(
+                      fullPhotoUrl,
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.broken_image,
+                        size: 100,
+                        color: SreaColors.textHint,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -912,7 +946,6 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
               const SizedBox(height: 20),
               _buildActionButtons(context),
               const SizedBox(height: 20),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -922,14 +955,13 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
                       context,
                     ).copyWith(fontWeight: FontWeight.w700),
                   ),
-                  if (!isResolvedOrEscalated)
+                  if (!['Resolved', 'Escalated'].contains(_incident.status))
                     IconButton(
                       icon: const Icon(
                         Icons.edit_outlined,
                         color: SreaColors.primary,
                       ),
                       onPressed: _showAddEditNotesBottomSheet,
-                      tooltip: 'Edit notes (visible to admins)',
                     ),
                 ],
               ),
@@ -942,22 +974,21 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
                   borderRadius: SreaRadius.card,
                   border: Border.all(color: SreaColors.border),
                 ),
-                child: hasNotes
+                child: _notesController.text.trim().isEmpty
                     ? Text(
-                        _notesController.text,
-                        style: SreaText.bodySmall(
-                          context,
-                        ).copyWith(color: SreaColors.textPrimary),
-                      )
-                    : Text(
                         'No notes added yet.',
                         style: SreaText.bodySmall(context).copyWith(
                           color: SreaColors.textHint,
                           fontStyle: FontStyle.italic,
                         ),
+                      )
+                    : Text(
+                        _notesController.text,
+                        style: SreaText.bodySmall(
+                          context,
+                        ).copyWith(color: SreaColors.textPrimary),
                       ),
               ),
-
               if (_incident.resolutionNotes != null) ...[
                 const SizedBox(height: 20),
                 Text(
@@ -997,7 +1028,6 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
                   ),
                 ),
               ],
-
               const SizedBox(height: 32),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -1059,7 +1089,6 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
     'Nov',
     'Dec',
   ][m - 1];
-
   SreaBadgeType _statusToBadgeType(String status) {
     switch (status) {
       case 'Resolved':
@@ -1079,14 +1108,12 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
 class _DragHandle extends StatelessWidget {
   const _DragHandle();
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 4,
-      decoration: BoxDecoration(
-        color: SreaColors.border,
-        borderRadius: SreaRadius.pill,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    width: 40,
+    height: 4,
+    decoration: BoxDecoration(
+      color: SreaColors.border,
+      borderRadius: SreaRadius.pill,
+    ),
+  );
 }

@@ -14,6 +14,7 @@ class IncidentReport {
   final int? personsInvolved;
   final String reporterRole;
   final bool reporterIsVerified;
+  final String reporterName; // ✅ added field
   final String? responderNotes;
   final String? escalationReason;
   final String? escalatedBy;
@@ -35,6 +36,7 @@ class IncidentReport {
     this.personsInvolved,
     required this.reporterRole,
     required this.reporterIsVerified,
+    required this.reporterName, // ✅ required now
     this.responderNotes,
     this.escalationReason,
     this.escalatedBy,
@@ -44,30 +46,43 @@ class IncidentReport {
   });
 
   factory IncidentReport.fromJson(Map<String, dynamic> json) {
+    // Handle nested reporter object if needed;
+    // many APIs return reporter as object with name, role, is_verified
+    String name = 'Unknown User';
+    if (json['reporter'] != null && json['reporter'] is Map<String, dynamic>) {
+      name = json['reporter']['name'] ?? 'Unknown User';
+    } else if (json['reporterName'] != null) {
+      name = json['reporterName'] as String;
+    }
+
     return IncidentReport(
-      id: json['id'] as String,
+      id: json['id'].toString(),
       type: json['type'] as String,
       description: json['description'] as String,
-      photoPath: json['photoPath'] as String?,
+      photoPath: json['photo_path'] as String?,
       barangay: json['barangay'] as String,
-      locationDetails: json['locationDetails'] as String?,
+      locationDetails: json['location_details'] as String?,
       coordinates: LatLng(
         (json['latitude'] as num).toDouble(),
         (json['longitude'] as num).toDouble(),
       ),
       address: json['address'] as String,
       status: json['status'] as String,
-      reportedAt: DateTime.parse(json['reportedAt'] as String),
-      personsInvolved: json['personsInvolved'] as int?,
-      reporterRole: json['reporterRole'] as String,
-      reporterIsVerified: json['reporterIsVerified'] as bool,
-      responderNotes: json['responderNotes'] as String?,
-      escalationReason: json['escalationReason'] as String?,
-      escalatedBy: json['escalatedBy'] as String?,
-      escalatedAt: json['escalatedAt'] as String?,
-      resolutionNotes: json['resolutionNotes'] as String?,
-      resolvedAt: json['resolvedAt'] != null
-          ? DateTime.parse(json['resolvedAt'] as String)
+      reportedAt: DateTime.parse(json['reported_at'] as String),
+      personsInvolved: json['persons_involved'] as int?,
+      reporterRole: json['reporter']['role'] ?? json['reporterRole'] ?? '',
+      reporterIsVerified:
+          json['reporter']['is_verified'] ??
+          json['reporterIsVerified'] ??
+          false,
+      reporterName: name, // ✅ set name
+      responderNotes: json['responder_notes'] as String?,
+      escalationReason: json['escalation_reason'] as String?,
+      escalatedBy: json['escalated_by'] as String?,
+      escalatedAt: json['escalated_at'] as String?,
+      resolutionNotes: json['resolution_notes'] as String?,
+      resolvedAt: json['resolved_at'] != null
+          ? DateTime.parse(json['resolved_at'] as String)
           : null,
     );
   }
@@ -77,23 +92,26 @@ class IncidentReport {
       'id': id,
       'type': type,
       'description': description,
-      'photoPath': photoPath,
+      'photo_path': photoPath,
       'barangay': barangay,
-      'locationDetails': locationDetails,
+      'location_details': locationDetails,
       'latitude': coordinates.latitude,
       'longitude': coordinates.longitude,
       'address': address,
       'status': status,
-      'reportedAt': reportedAt.toIso8601String(),
-      'personsInvolved': personsInvolved,
-      'reporterRole': reporterRole,
-      'reporterIsVerified': reporterIsVerified,
-      'responderNotes': responderNotes,
-      'escalationReason': escalationReason,
-      'escalatedBy': escalatedBy,
-      'escalatedAt': escalatedAt,
-      'resolutionNotes': resolutionNotes,
-      'resolvedAt': resolvedAt?.toIso8601String(),
+      'reported_at': reportedAt.toIso8601String(),
+      'persons_involved': personsInvolved,
+      'reporter': {
+        'role': reporterRole,
+        'is_verified': reporterIsVerified,
+        'name': reporterName, // ✅ include name in output
+      },
+      'responder_notes': responderNotes,
+      'escalation_reason': escalationReason,
+      'escalated_by': escalatedBy,
+      'escalated_at': escalatedAt,
+      'resolution_notes': resolutionNotes,
+      'resolved_at': resolvedAt?.toIso8601String(),
     };
   }
 
@@ -111,6 +129,7 @@ class IncidentReport {
     int? personsInvolved,
     String? reporterRole,
     bool? reporterIsVerified,
+    String? reporterName,
     String? responderNotes,
     String? escalationReason,
     String? escalatedBy,
@@ -132,6 +151,7 @@ class IncidentReport {
       personsInvolved: personsInvolved ?? this.personsInvolved,
       reporterRole: reporterRole ?? this.reporterRole,
       reporterIsVerified: reporterIsVerified ?? this.reporterIsVerified,
+      reporterName: reporterName ?? this.reporterName, // ✅ update copy
       responderNotes: responderNotes ?? this.responderNotes,
       escalationReason: escalationReason ?? this.escalationReason,
       escalatedBy: escalatedBy ?? this.escalatedBy,

@@ -12,6 +12,7 @@ class IncidentController extends Controller
     {
         $query = Incident::with(['reporter', 'assignedTo']);
 
+        // Status filter
         if ($request->status && $request->status !== 'All') {
             if ($request->status === 'Active') {
                 $query->whereIn('status', ['Pending', 'Under Review']);
@@ -20,10 +21,12 @@ class IncidentController extends Controller
             }
         }
 
+        // Barangay filter
         if ($request->barangay && $request->barangay !== 'All') {
             $query->where('barangay', $request->barangay);
         }
 
+        // Reporter type filter
         if ($request->reporter_type && $request->reporter_type !== 'All') {
             switch ($request->reporter_type) {
                 case 'Verified Resident':
@@ -38,7 +41,15 @@ class IncidentController extends Controller
             }
         }
 
-        $incidents = $query->orderByRaw("CASE status WHEN 'Pending' THEN 1 WHEN 'Under Review' THEN 2 ELSE 3 END")->orderBy('reported_at', 'desc')->get();
+        // ✅ Filter by assigned to current responder
+        if ($request->boolean('assigned_to_me')) {
+            $query->where('assigned_to', $request->user()->id);
+        }
+
+        $incidents = $query->orderByRaw("CASE status WHEN 'Pending' THEN 1 WHEN 'Under Review' THEN 2 ELSE 3 END")
+            ->orderBy('reported_at', 'desc')
+            ->get();
+
         return response()->json($incidents);
     }
 
@@ -54,7 +65,10 @@ class IncidentController extends Controller
         if ($incident->status !== 'Pending') {
             return response()->json(['error' => 'Incident not pending'], 422);
         }
-        $incident->update(['status' => 'Under Review', 'assigned_to' => $request->user()->id]);
+        $incident->update([
+            'status' => 'Under Review',
+            'assigned_to' => $request->user()->id
+        ]);
         return response()->json($incident);
     }
 

@@ -10,11 +10,25 @@ class Incident extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'type', 'description', 'photo_path', 'barangay',
-        'location_details', 'latitude', 'longitude', 'address', 'status',
-        'reported_at', 'persons_involved', 'assigned_to', 'responder_notes',
-        'escalation_reason', 'escalated_by', 'escalated_at',
-        'resolution_notes', 'resolved_at'
+        'user_id',
+        'type',
+        'description',
+        'photo_path',
+        'barangay',
+        'location_details',
+        'latitude',
+        'longitude',
+        'address',
+        'status',
+        'reported_at',
+        'persons_involved',
+        'assigned_to',
+        'responder_notes',
+        'escalation_reason',
+        'escalated_by',
+        'escalated_at',
+        'resolution_notes',
+        'resolved_at'
     ];
 
     protected $casts = [
@@ -31,6 +45,12 @@ class Incident extends Model
     }
 
     public function assignedTo()
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    // Alias for responder (used by responder app)
+    public function responder()
     {
         return $this->belongsTo(User::class, 'assigned_to');
     }

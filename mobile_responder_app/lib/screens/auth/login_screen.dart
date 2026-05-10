@@ -1,6 +1,10 @@
+// File: login_screen.dart
+// Path: mobile_responder_app/lib/screens/auth/login_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:srea_shared/srea_shared.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../services/api_service.dart';
 import '../home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -47,15 +51,35 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    // TODO: Connect to your auth service with role 'responder'
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
+    try {
+      final api = ApiService();
+      await api.login(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      String errorMsg = 'Invalid email or password.';
+      if (e.toString().contains('403')) {
+        errorMsg = 'This account is not authorized for the responder app.';
+      } else if (e.toString().contains('401')) {
+        errorMsg = 'Invalid credentials.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMsg),
+          backgroundColor: SreaColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -80,16 +104,16 @@ class _LoginScreenState extends State<LoginScreen>
                         children: [
                           Text(
                             'Responder Login',
-                            style: SreaText.headlineSmall(context).copyWith(
-                              color: SreaColors.textPrimary,
-                            ),
+                            style: SreaText.headlineSmall(
+                              context,
+                            ).copyWith(color: SreaColors.textPrimary),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Sign in to manage incidents',
-                            style: SreaText.bodySmall(context).copyWith(
-                              color: SreaColors.textSecondary,
-                            ),
+                            style: SreaText.bodySmall(
+                              context,
+                            ).copyWith(color: SreaColors.textSecondary),
                           ),
                           const SizedBox(height: 28),
 
@@ -101,7 +125,8 @@ class _LoginScreenState extends State<LoginScreen>
                             prefixIcon: Icons.mail_outline_rounded,
                             required: true,
                             validator: (v) {
-                              if (v == null || v.isEmpty) return 'Email is required';
+                              if (v == null || v.isEmpty)
+                                return 'Email is required';
                               if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v)) {
                                 return 'Enter a valid email';
                               }
@@ -116,7 +141,8 @@ class _LoginScreenState extends State<LoginScreen>
                             controller: _passwordController,
                             required: true,
                             validator: (v) {
-                              if (v == null || v.isEmpty) return 'Password is required';
+                              if (v == null || v.isEmpty)
+                                return 'Password is required';
                               if (v.length < 6) return 'Minimum 6 characters';
                               return null;
                             },
@@ -127,9 +153,9 @@ class _LoginScreenState extends State<LoginScreen>
                             alignment: Alignment.centerLeft,
                             child: Text(
                               'Accounts are provided by the administrator.',
-                              style: SreaText.label(context).copyWith(
-                                color: SreaColors.textHint,
-                              ),
+                              style: SreaText.label(
+                                context,
+                              ).copyWith(color: SreaColors.textHint),
                             ),
                           ),
                           const SizedBox(height: 28),
@@ -191,8 +217,14 @@ class _HeaderSection extends StatelessWidget {
                     letterSpacing: 4,
                   ),
                   children: const [
-                    TextSpan(text: 'SR', style: TextStyle(color: Colors.white)),
-                    TextSpan(text: 'EA', style: TextStyle(color: Color(0xFFFF3B30))),
+                    TextSpan(
+                      text: 'SR',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    TextSpan(
+                      text: 'EA',
+                      style: TextStyle(color: Color(0xFFFF3B30)),
+                    ),
                   ],
                 ),
               ),
@@ -206,7 +238,10 @@ class _HeaderSection extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: SreaRadius.pill,

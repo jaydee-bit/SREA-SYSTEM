@@ -60,7 +60,7 @@ InputDecoration _sreaInputDecoration({
     disabledBorder: OutlineInputBorder(
       borderRadius: SreaRadius.input,
       borderSide: BorderSide(
-        color: SreaColors.border.withOpacity(0.5),
+        color: SreaColors.border.withValues(alpha: 0.5),
         width: 1,
       ),
     ),
@@ -257,42 +257,47 @@ class SreaDropdown<T> extends StatelessWidget {
           SreaInputLabel(label: label!, required: required),
           const SizedBox(height: 6),
         ],
-        DropdownButtonFormField<T>(
-          initialValue: effectiveValue,
-          validator: validator,
-          onChanged: onChanged,
-          isExpanded: true,
-          menuMaxHeight: 300,
-          style: SreaText.bodySmall(context).copyWith(
-            fontSize: _responsiveInputFontSize(context),
-            color: SreaColors.textPrimary,
-          ),
-          icon: const Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: SreaColors.textHint,
-          ),
-          decoration: _sreaInputDecoration(context: context, hint: hint),
-          items: items.map((item) {
-            final label = itemLabel != null
-                ? itemLabel!(item)
-                : item.toString();
-            return DropdownMenuItem<T>(
-              value: item,
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width - 40,
-                ),
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: SreaText.bodySmall(context).copyWith(
-                    fontSize: _responsiveInputFontSize(context),
-                    color: SreaColors.textPrimary,
+        // DropdownButtonFormField requires a Material ancestor.
+        // Wrapping here makes SreaDropdown self-contained regardless of context.
+        Material(
+          color: Colors.transparent,
+          child: DropdownButtonFormField<T>(
+            value: effectiveValue,
+            validator: validator,
+            onChanged: onChanged,
+            isExpanded: true,
+            menuMaxHeight: 300,
+            style: SreaText.bodySmall(context).copyWith(
+              fontSize: _responsiveInputFontSize(context),
+              color: SreaColors.textPrimary,
+            ),
+            icon: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: SreaColors.textHint,
+            ),
+            decoration: _sreaInputDecoration(context: context, hint: hint),
+            items: items.map((item) {
+              final label = itemLabel != null
+                  ? itemLabel!(item)
+                  : item.toString();
+              return DropdownMenuItem<T>(
+                value: item,
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width - 40,
+                  ),
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: SreaText.bodySmall(context).copyWith(
+                      fontSize: _responsiveInputFontSize(context),
+                      color: SreaColors.textPrimary,
+                    ),
                   ),
                 ),
-              ),
-            );
-          }).toList(),
+              );
+            }).toList(),
+          ),
         ),
       ],
     );

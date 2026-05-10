@@ -16,14 +16,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    // Load mock data if empty
     if (_notificationService.notifications.isEmpty) {
       _notificationService.loadMockNotifications();
     }
+    _notificationService.addListener(_updateUnreadCount);
+  }
+
+  @override
+  void dispose() {
+    _notificationService.removeListener(_updateUnreadCount);
+    super.dispose();
+  }
+
+  void _updateUnreadCount() {
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    final unreadCount = _notificationService.unreadCount;
+
     return Scaffold(
       backgroundColor: SreaColors.background,
       appBar: AppBar(
@@ -35,13 +47,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         backgroundColor: SreaColors.primary,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: SreaColors.textOnPrimary,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
-          if (_notificationService.unreadCount > 0)
+          if (unreadCount > 0)
             TextButton(
-              onPressed: () {
-                _notificationService.markAllAsRead();
-                setState(() {});
-              },
+              onPressed: () => _notificationService.markAllAsRead(),
               child: Text(
                 'Mark all read',
                 style: SreaText.label(
@@ -56,14 +72,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         builder: (context, child) {
           final notifications = _notificationService.notifications;
           if (notifications.isEmpty) {
-            return Center(
-              child: Text(
-                'No notifications yet',
-                style: SreaText.bodyLarge(
-                  context,
-                ).copyWith(color: SreaColors.textSecondary),
-              ),
-            );
+            return const Center(child: Text('No notifications yet'));
           }
           return ListView.builder(
             padding: const EdgeInsets.all(12),
@@ -72,10 +81,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               final notif = notifications[index];
               return GestureDetector(
                 onTap: () {
-                  if (!notif.isRead) {
-                    _notificationService.markAsRead(notif.id);
-                    setState(() {});
-                  }
+                  if (!notif.isRead) _notificationService.markAsRead(notif.id);
                 },
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 12),
